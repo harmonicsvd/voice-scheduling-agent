@@ -33,7 +33,7 @@ CALENDAR_ID = os.getenv('CALENDAR_ID')
 def parse_duration_to_minutes(duration_str):
     duration_str = duration_str.lower()
     
-    # Convert word numbers to digits
+    # Convert word numbers to digits 
     word_to_num = {
         "one": "1", "two": "2", "three": "3", "four": "4",
         "half": "30 min", "thirty": "30", "forty five": "45",
