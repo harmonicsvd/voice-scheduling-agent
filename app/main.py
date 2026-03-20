@@ -87,8 +87,8 @@ async def create_event(request: Request):
         # Create Google Calendar event
         service = get_calendar_service()
         event = {
-            'summary': f"{title} with {name}",
-            'description': f"Meeting scheduled via Voice Scheduling Agent for {name}",
+            'summary': title,
+            'description': f"Scheduled by {name} via Voice Scheduling Agent.",
             'start': {
                 'dateTime': event_start.isoformat(),
                 'timeZone': 'Europe/Berlin',
