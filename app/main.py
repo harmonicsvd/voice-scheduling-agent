@@ -47,6 +47,12 @@ def get_calendar_service():
     service = build('calendar', 'v3', credentials=credentials)
     return service
 
+@app.get("/vapi-key")
+async def get_vapi_key():
+    return JSONResponse(content={
+        "apiKey": os.getenv('VAPI_PUBLIC_KEY')
+    })
+
 @app.get("/")
 def root():
     return {"status": "Voice Scheduling Agent is running!"}

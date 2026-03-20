@@ -481,21 +481,26 @@
     var callActive   = false;
     var isLoading    = false;
 
-    window.addEventListener('load', function () {
-      try {
-        vapiInstance = window.vapiSDK.run({
-          apiKey:    'edcb3dad-653c-4963-8bbf-e89a400992c7',
-          assistant: 'c5ba8d95-1eff-4579-bca1-f87bb5ded13d',
-          config: {
-            position: 'bottom-right',
-            offset:   '0px',
-            width:    '0px',
-            height:   '0px',
-            idle:    { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' },
-            loading: { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' },
-            active:  { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' }
-          }
-        });
+   window.addEventListener('load', async function () {
+  try {
+    document.getElementById('status').textContent = 'Initializing...';
+    const res = await fetch('https://voice-scheduling-agent-rmxa.onrender.com/vapi-key');
+    const { apiKey } = await res.json();
+    document.getElementById('status').textContent = '';
+
+    vapiInstance = window.vapiSDK.run({
+      apiKey:    apiKey,
+      assistant: 'c5ba8d95-1eff-4579-bca1-f87bb5ded13d',
+      config: {
+        position: 'bottom-right',
+        offset:   '0px',
+        width:    '0px',
+        height:   '0px',
+        idle:    { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' },
+        loading: { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' },
+        active:  { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' }
+      }
+    });
 
         vapiInstance.on('call-start', function () {
           isLoading = false; callActive = true;
