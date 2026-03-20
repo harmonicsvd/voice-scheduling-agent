@@ -75,7 +75,7 @@ cd voice-scheduling-agent
 
 2. Copy the example config and fill in your own credentials:
 ```bash
-cp config.example.env .env
+cp example.env .env
 ```
 
 ```
