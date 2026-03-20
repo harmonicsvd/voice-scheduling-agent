@@ -14,8 +14,13 @@ A real-time voice assistant that schedules meetings and creates Google Calendar 
 4. Confirm the details
 5. The event gets created on Google Calendar automatically
 
-> The agent confirms name spelling letter by letter and always reads back the date in plain language before confirming.
+> The agent confirms name spelling letter by letter and always reads 
+> back the date in plain language before confirming.
 
+> The agent validates that the requested date is not in the past — 
+> if a past date is given it will ask the user to choose a future date.
+
+> The agent uses the current real date dynamically — no hardcoded dates.
 ---
 
 ## Demo Video
