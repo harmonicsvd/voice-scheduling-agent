@@ -13,12 +13,13 @@ app = FastAPI()
 
 # Google Calendar setup
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-SERVICE_ACCOUNT_FILE = 'service_account.json'
 CALENDAR_ID = os.getenv('CALENDAR_ID')
 
 def get_calendar_service():
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    # Read service account from environment variable
+    service_account_info = json.loads(os.getenv('SERVICE_ACCOUNT_JSON'))
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info, scopes=SCOPES)
     service = build('calendar', 'v3', credentials=credentials)
     return service
 
@@ -69,7 +70,7 @@ async def create_event(request: Request):
         }
 
         created_event = service.events().insert(
-            calendarId=CALENDAR_ID, 
+            calendarId=CALENDAR_ID,
             body=event
         ).execute()
 
