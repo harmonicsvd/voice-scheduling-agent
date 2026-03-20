@@ -18,6 +18,17 @@
       flex-direction: column;
     }
 
+    /* Hide VAPI default button completely */
+#vapi-support-btn,
+[id^="vapi"],
+.vapi-btn,
+div[style*="position: fixed"][style*="bottom"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
     /* ── Calendar background ── */
     .cal-bg {
       position: absolute;
