@@ -63,9 +63,9 @@ The backend calls the **Google Calendar API v3**, creates the event, and returns
 
 ## Run Locally
 
-The live deployed URL is the recommended way to test this project — no setup needed.
+The live deployed URL is the recommended way to test — no setup needed.
 
-For running your own instance:
+For a quick local test:
 
 1. Clone the repo:
 ```bash
@@ -73,28 +73,23 @@ git clone https://github.com/harmonicsvd/voice-scheduling-agent.git
 cd voice-scheduling-agent
 ```
 
-2. Copy the example config and fill in your own credentials:
+2. Open `index.html` in your browser.
+
+The backend is already deployed on Render — the frontend connects to it automatically.
+
+**To run your own full instance** with your own credentials and calendar:
+
+1. Copy and fill in credentials:
 ```bash
 cp example.env .env
 ```
-
-```
-CALENDAR_ID=your-gmail@gmail.com
-SERVICE_ACCOUNT_JSON={"type":"service_account",...}
-VAPI_PUBLIC_KEY=your-vapi-public-key
-```
-
-3. Run the setup script:
+2. Run the setup script:
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
-
-4. Deploy the backend to any Python-compatible host (e.g. Render) so VAPI can reach it via a public URL.
-
-5. Update the `createCalendarEvent` tool webhook URL in your VAPI dashboard to point to your deployed backend.
-
-6. Open `index.html` in your browser.
+3. Deploy your backend to a public host (e.g. Render)
+4. Update the webhook URL in your VAPI dashboard to your deployed backend URL
 
 ---
 
