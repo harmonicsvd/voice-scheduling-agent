@@ -113,3 +113,4 @@ These were not part of the assignment brief — added to explore UX thinking and
 
 - **GitHub:** https://github.com/harmonicsvd/voice-scheduling-agent
 - **Live URL:** https://voice-scheduling-agent-pi.vercel.app
+- **Demo video:** 👉 [Watch Demo on Google Drive](https://drive.google.com/file/d/17kCrG0xyrFIFySx9AJ40cIILDZwRM4BB/view?usp=sharing)
