@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voice Scheduling Agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f8f6ff 0%, #eff6ff 50%, #f0fdf4 100%);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Calendar background ── */
+    .cal-bg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cal-header-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      border-bottom: 1px solid rgba(5,150,105,0.12);
+    }
+
+    .cal-day-label {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(5,150,105,0.22);
+      padding: 10px 0;
+      letter-spacing: 0.05em;
+    }
+
+    .cal-cells {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      flex: 1;
+    }
+
+    .cal-cell {
+      border-right: 0.5px solid rgba(5,150,105,0.08);
+      border-bottom: 0.5px solid rgba(5,150,105,0.08);
+      padding: 6px 8px;
+      min-height: 80px;
+      transition: background 0.4s ease;
+    }
+
+    .cal-num {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(5,150,105,0.18);
+      transition: all 0.4s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+    }
+
+    .cal-num.today {
+      color: rgba(5,150,105,0.45);
+      font-weight: 600;
+    }
+
+    .cal-num.highlighted {
+      background: rgba(5,150,105,0.2);
+      color: #059669 !important;
+      font-weight: 700;
+    }
+
+    .cal-cell.highlighted {
+      background: rgba(5,150,105,0.05);
+    }
+
+    .cal-evt {
+      font-size: 8px;
+      background: rgba(5,150,105,0.08);
+      color: rgba(5,150,105,0.3);
+      border-radius: 3px;
+      padding: 2px 4px;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cal-evt.new {
+      background: rgba(5,150,105,0.2);
+      color: #059669;
+    }
+
+    /* ── Blobs ── */
+    .blobs {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ── Main content ── */
+    .content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem 2rem;
+      min-height: 100vh;
+    }
+
+    .icon-wrap {
+      width: 64px;
+      height: 64px;
+      background: rgba(255,255,255,0.95);
+      border: 0.5px solid #d1fae5;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.2rem;
+      box-shadow: 0 2px 12px rgba(16,185,129,0.12);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #1e1b4b;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 1.8rem;
+      line-height: 1.5;
+    }
+
+    .steps {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 1.8rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .step {
+      background: rgba(255,255,255,0.88);
+      border: 0.5px solid #d1fae5;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: #374151;
+      min-width: 90px;
+      text-align: center;
+    }
+
+    .step-icon { font-size: 15px; margin-bottom: 4px; }
+
+    /* ── Mic button ── */
+    .btn-wrap {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin-bottom: 1rem;
+    }
+
+    .ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1.5px solid #bbf7d0;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .ring-1 { width: 110px; height: 110px; opacity: 0.5; }
+    .ring-2 { width: 90px;  height: 90px;  border-color: #6ee7b7; opacity: 0.4; }
+
+    .ring-1.active { animation: rpl 1.5s ease-out infinite; border-color: #059669; }
+    .ring-2.active { animation: rpl 1.5s ease-out infinite 0.4s; border-color: #059669; }
+
+    @keyframes rpl {
+      0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.5; }
+      100% { transform: translate(-50%,-50%) scale(1.5); opacity: 0; }
+    }
+
+    .mic-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid #059669;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      box-shadow: 0 4px 16px rgba(5,150,105,0.18);
+      transition: all 0.2s ease;
+    }
+
+    .mic-btn:hover { background: #ecfdf5; }
+    .mic-btn.active { background: #059669; }
+    .mic-btn.active svg { stroke: white; }
+    .mic-btn.loading { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-label {
+      font-size: 13px;
+      color: #059669;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+
+    .btn-hint {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 0.6rem;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #9ca3af;
+      min-height: 18px;
+      margin-bottom: 0.8rem;
+      transition: color 0.2s;
+    }
+
+    .status.active { color: #059669; }
+    .status.error  { color: #ef4444; }
+
+    /* ── Meetings tracker ── */
+    .meetings-box {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(255,255,255,0.88);
+      border: 0.5px solid #d1fae5;
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+
+    .meetings-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: #065f46;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .meeting-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 0.5px solid #f0fdf4;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .meeting-row:last-child { border-bottom: none; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .meeting-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      flex-shrink: 0;
+    }
+
+    .meeting-info { flex: 1; }
+
+    .meeting-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: #1e1b4b;
+    }
+
+    .meeting-meta {
+      font-size: 10px;
+      color: #9ca3af;
+      margin-top: 1px;
+    }
+
+    .meeting-time {
+      font-size: 11px;
+      color: #059669;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .no-meetings {
+      font-size: 12px;
+      color: #d1d5db;
+      text-align: center;
+      padding: 6px 0;
+    }
+
+    .footer {
+      font-size: 10px;
+      color: #d1d5db;
+      margin-top: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Calendar background -->
+  <div class="cal-bg">
+    <div class="cal-header-row">
+      <div class="cal-day-label">SUN</div>
+      <div class="cal-day-label">MON</div>
+      <div class="cal-day-label">TUE</div>
+      <div class="cal-day-label">WED</div>
+      <div class="cal-day-label">THU</div>
+      <div class="cal-day-label">FRI</div>
+      <div class="cal-day-label">SAT</div>
+    </div>
+    <div class="cal-cells" id="calCells"></div>
+  </div>
+
+  <!-- Blobs -->
+  <svg class="blobs" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="8%"  cy="18%" r="130" fill="#bbf7d0" opacity="0.38"/>
+    <circle cx="87%" cy="10%" r="90"  fill="#a5f3fc" opacity="0.28"/>
+    <circle cx="91%" cy="82%" r="150" fill="#d9f99d" opacity="0.32"/>
+    <circle cx="4%"  cy="86%" r="110" fill="#c4b5fd" opacity="0.22"/>
+  </svg>
+
+  <!-- Main content -->
+  <div class="content">
+
+    <div class="icon-wrap">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8"  y1="2" x2="8"  y2="6"/>
+        <line x1="3"  y1="10" x2="21" y2="10"/>
+      </svg>
+    </div>
+
+    <h1>Voice Scheduling Agent</h1>
+    <p class="subtitle">Schedule meetings effortlessly using just your voice.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-icon">👤</div>Your name</div>
+      <div class="step"><div class="step-icon">📅</div>Date & time</div>
+      <div class="step"><div class="step-icon">✅</div>Confirm & done</div>
+    </div>
+
+    <div class="btn-wrap" onclick="toggleCall()">
+      <div class="ring ring-1" id="ring1"></div>
+      <div class="ring ring-2" id="ring2"></div>
+      <div class="mic-btn" id="micBtn">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+      </div>
+    </div>
+
+    <p class="btn-label" id="btnLabel">Tap to start your session</p>
+    <p class="btn-hint"  id="btnHint">Speak naturally — the agent will guide you</p>
+    <p class="status"    id="status"></p>
+
+    <div class="meetings-box">
+      <div class="meetings-title">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Recent Meetings
+      </div>
+      <div id="meetingsList">
+        <div class="no-meetings" id="noMeetings">No meetings scheduled yet</div>
+      </div>
+    </div>
+
+    <p class="footer">Powered by VAPI · Google Calendar · GPT-4.1</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js"></script>
+  <script>
+    // ── In-memory meetings store ──
+    var meetings = [];
+
+    // ── Build calendar grid ──
+    var today    = new Date().getDate();
+    var calCells = document.getElementById('calCells');
+    var cellMap  = {};
+
+    for (var i = 1; i <= 35; i++) {
+      var d    = ((i - 1) % 31) + 1;
+      var cell = document.createElement('div');
+      cell.className = 'cal-cell';
+
+      var num = document.createElement('div');
+      num.className = 'cal-num' + (d === today ? ' today' : '');
+      num.id = 'num-' + d;
+      num.textContent = d;
+      cell.appendChild(num);
+
+      calCells.appendChild(cell);
+      if (!cellMap[d]) cellMap[d] = { cell: cell, num: num };
+    }
+
+    // ── Highlight a date in the grid ──
+    function highlightDate(dateStr, title) {
+      var parts = dateStr.split('-');
+      if (parts.length < 3) return;
+      var day = parseInt(parts[2], 10);
+      if (!cellMap[day]) return;
+
+      cellMap[day].cell.classList.add('highlighted');
+      cellMap[day].num.classList.add('highlighted');
+
+      var ev = document.createElement('div');
+      ev.className = 'cal-evt new';
+      ev.textContent = title || 'Meeting';
+      cellMap[day].cell.appendChild(ev);
+    }
+
+    // ── Add meeting to tracker ──
+    function addMeeting(result) {
+      var noMsg = document.getElementById('noMeetings');
+      if (noMsg) noMsg.remove();
+
+      var titleMatch = result.match(/['"](.+?)['"]/);
+      var dateMatch  = result.match(/on (\d{4}-\d{2}-\d{2})/);
+      var timeMatch  = result.match(/at (\d{2}:\d{2})/);
+      var nameMatch  = result.match(/for (.+?) on/);
+
+      var title = titleMatch ? titleMatch[1] : 'Meeting';
+      var date  = dateMatch  ? dateMatch[1]  : '';
+      var time  = timeMatch  ? timeMatch[1]  : '';
+      var name  = nameMatch  ? nameMatch[1]  : 'Guest';
+
+      var row = document.createElement('div');
+      row.className = 'meeting-row';
+      row.innerHTML =
+        '<div class="meeting-dot"></div>' +
+        '<div class="meeting-info">' +
+          '<div class="meeting-name">' + title + '</div>' +
+          '<div class="meeting-meta">' + name + ' · ' + date + '</div>' +
+        '</div>' +
+        '<div class="meeting-time">' + time + '</div>';
+
+      var list = document.getElementById('meetingsList');
+      list.insertBefore(row, list.firstChild);
+
+      if (meetings.length >= 5) list.removeChild(list.lastChild);
+      meetings.unshift({ title: title, name: name, date: date, time: time });
+    }
+
+    // ── VAPI ──
+    var vapiInstance = null;
+    var callActive   = false;
+    var isLoading    = false;
+
+    window.addEventListener('load', function () {
+      try {
+        vapiInstance = window.vapiSDK.run({
+          apiKey:    'edcb3dad-653c-4963-8bbf-e89a400992c7',
+          assistant: 'c5ba8d95-1eff-4579-bca1-f87bb5ded13d',
+          config: {
+            position: 'bottom-right',
+            offset:   '0px',
+            width:    '0px',
+            height:   '0px',
+            idle:    { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' },
+            loading: { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' },
+            active:  { color: 'transparent', type: 'pill', title: '', subtitle: '', icon: '' }
+          }
+        });
+
+        vapiInstance.on('call-start', function () {
+          isLoading = false; callActive = true;
+          document.getElementById('micBtn').classList.remove('loading');
+          document.getElementById('micBtn').classList.add('active');
+          document.getElementById('ring1').classList.add('active');
+          document.getElementById('ring2').classList.add('active');
+          document.getElementById('btnLabel').textContent = 'Tap to end call';
+          document.getElementById('btnHint').textContent  = 'Listening...';
+          document.getElementById('status').textContent   = 'Connected — start speaking!';
+          document.getElementById('status').className     = 'status active';
+        });
+
+        vapiInstance.on('call-end', function () {
+          callActive = false;
+          document.getElementById('micBtn').classList.remove('active');
+          document.getElementById('ring1').classList.remove('active');
+          document.getElementById('ring2').classList.remove('active');
+          document.getElementById('btnLabel').textContent = 'Tap to start your session';
+          document.getElementById('btnHint').textContent  = 'Speak naturally — the agent will guide you';
+          document.getElementById('status').textContent   = 'Call ended';
+          document.getElementById('status').className     = 'status';
+        });
+
+        vapiInstance.on('error', function () {
+          isLoading = false; callActive = false;
+          document.getElementById('micBtn').classList.remove('loading', 'active');
+          document.getElementById('status').textContent = 'Something went wrong, please try again.';
+          document.getElementById('status').className   = 'status error';
+        });
+
+        vapiInstance.on('message', function (msg) {
+  if (msg.type !== 'conversation-update') return;
+  var messages = msg.messages || [];
+  var toolResult = messages.find(function(m) { return m.role === 'tool_call_result'; });
+  if (!toolResult || !toolResult.result) return;
+ var result = toolResult.result;
+if (result === window._lastProcessedResult) return;
+window._lastProcessedResult = result;
+console.log('Tool result found:', result);
+          var dateMatch  = result.match(/(\d{4}-\d{2}-\d{2})/);
+          var titleMatch = result.match(/['"](.+?)['"]/);
+          if (dateMatch) highlightDate(dateMatch[1], titleMatch ? titleMatch[1] : 'Meeting');
+
+          addMeeting(result);
+        });
+
+        console.log('VAPI ready');
+      } catch (e) {
+        console.error('VAPI init error', e);
+      }
+    });
+
+    function toggleCall() {
+      if (isLoading) return;
+      if (!vapiInstance) {
+        document.getElementById('status').textContent = 'Still loading, please wait...';
+        return;
+      }
+      if (callActive) {
+        vapiInstance.stop();
+      } else {
+        isLoading = true;
+        document.getElementById('micBtn').classList.add('loading');
+        document.getElementById('status').textContent = 'Connecting...';
+        document.getElementById('status').className   = 'status';
+        vapiInstance.start('c5ba8d95-1eff-4579-bca1-f87bb5ded13d')
+          .catch(function () {
+            isLoading = false;
+            document.getElementById('micBtn').classList.remove('loading');
+            document.getElementById('status').textContent = 'Could not connect, please try again.';
+            document.getElementById('status').className   = 'status error';
+          });
+      }
+    }
+  </script>
+
+</body>
+</html>
