@@ -98,7 +98,7 @@ chmod +x setup.sh
 These were not part of the assignment brief — added to explore UX thinking and design ability.
 
 - **Full-page calendar grid background** — a subtle frosted Google Calendar-style grid sits behind all content, making the scheduling context visually clear without being distracting
-- **Date highlighting** — when a meeting is created, that date number in the background grid highlights green in real time, connecting the voice action to a visual calendar response
+- **Date highlighting** — when a meeting is created, that date number in the background grid highlights green in real time, connecting the voice action to a visual calendar response for making it more appealing for user.
 - **Recent meetings tracker** — a live in-memory list shows all meetings scheduled in the current session, acting like a lightweight local database
 - **Circular mic button with ripple animation** — replaces the standard button with a more intentional voice-first interaction pattern
 - **VAPI default button hidden** — the SDK's floating button is suppressed and replaced entirely with the custom UI
