@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.DS_Store
+credentials.json
+token.json
+service_account.json
+API-Key.pages
+API-Key.pdf
