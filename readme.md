@@ -18,6 +18,12 @@ A real-time voice assistant that schedules meetings and creates Google Calendar 
 
 ---
 
+## Demo Video
+
+👉 [Watch Demo on Google Drive](https://drive.google.com/file/d/17kCrG0xyrFIFySx9AJ40cIILDZwRM4BB/view?usp=sharing)
+
+---
+
 ## Stack
 
 | Layer | Tool |
@@ -57,14 +63,20 @@ The backend calls the **Google Calendar API v3**, creates the event, and returns
 
 ## Run Locally
 
-1. Clone the repo and navigate into it:
+The live deployed URL is the recommended way to test this project — no setup needed.
 
+For running your own instance:
+
+1. Clone the repo:
 ```bash
 git clone https://github.com/harmonicsvd/voice-scheduling-agent.git
 cd voice-scheduling-agent
 ```
 
-2. Create a `.env` file with your credentials:
+2. Copy the example config and fill in your own credentials:
+```bash
+cp config.example.env .env
+```
 
 ```
 CALENDAR_ID=your-gmail@gmail.com
@@ -73,13 +85,16 @@ VAPI_PUBLIC_KEY=your-vapi-public-key
 ```
 
 3. Run the setup script:
-
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-4. Open `index.html` in your browser.
+4. Deploy the backend to any Python-compatible host (e.g. Render) so VAPI can reach it via a public URL.
+
+5. Update the `createCalendarEvent` tool webhook URL in your VAPI dashboard to point to your deployed backend.
+
+6. Open `index.html` in your browser.
 
 ---
 
@@ -99,7 +114,7 @@ These were not part of the assignment brief — added to explore UX thinking and
 
 - **Calendar grid is decorative** — the background grid does not reflect the actual days of the month or week alignment. It is a visual design element. A future version would render a proper month calendar.
 
-- **Events go to my calendar** — all meetings are created on the my Google Calendar. In future, users would authenticate via Google OAuth to schedule on their own calendars.
+- **Shared calendar** — events are currently created on the developer's Google Calendar. Testers are welcome to create a few test events — they will be cleaned up periodically. In production, users would authenticate via Google OAuth to schedule on their own calendars.
 
 - **STT accuracy on uncommon names** — speech-to-text occasionally mishears non-English names. The agent asks for letter-by-letter spelling confirmation to mitigate this.
 
@@ -113,4 +128,4 @@ These were not part of the assignment brief — added to explore UX thinking and
 
 - **GitHub:** https://github.com/harmonicsvd/voice-scheduling-agent
 - **Live URL:** https://voice-scheduling-agent-pi.vercel.app
-- **Demo video:** 👉 [Watch Demo on Google Drive](https://drive.google.com/file/d/17kCrG0xyrFIFySx9AJ40cIILDZwRM4BB/view?usp=sharing)
+- **Demo Video:** 👉 [Watch on Google Drive](https://drive.google.com/file/d/17kCrG0xyrFIFySx9AJ40cIILDZwRM4BB/view?usp=sharing)
