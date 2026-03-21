@@ -114,7 +114,7 @@ These were not part of the assignment brief — added to explore UX thinking and
 
 - **Calendar grid is decorative** — the background grid does not reflect the actual days of the month or week alignment. It is a visual design element. A future version would render a proper month calendar.
 
-- **Shared calendar** — events are currently created on the developer's Google Calendar. Testers are welcome to create a few test events — they will be cleaned up periodically. In production, users would authenticate via Google OAuth to schedule on their own calendars.
+- **Shared calendar** — events are currently created on the developer's Google Calendar. Testers are welcome to create a few test events. In production, users would authenticate via Google OAuth to schedule on their own calendars.
 
 - **STT accuracy on uncommon names** — speech-to-text occasionally mishears non-English names. The agent asks for letter-by-letter spelling confirmation to mitigate this.
 
