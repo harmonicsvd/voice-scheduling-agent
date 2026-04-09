@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.google_clients import get_calendar_service, build_oauth
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from typing import Literal, Any
 
 from app.db import init_db, get_db
@@ -80,13 +80,17 @@ class CreateEventToolCall(BaseModel):
 
 
 class CreateEventMessage(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    toolCalls: list[CreateEventToolCall] = Field(default_factory=list, alias="tool_calls")
+    toolCalls: list[CreateEventToolCall] = Field(default_factory=list)
 
 
 class CreateEventRequest(BaseModel):
     message: CreateEventMessage
     
+def _parse_create_event_arguments(raw_arguments: dict) -> CreateEventArguments:
+    if hasattr(CreateEventArguments, "model_validate"):
+        return CreateEventArguments.model_validate(raw_arguments)
+    return CreateEventArguments.parse_obj(raw_arguments)
+
 
 @app.get("/profile")
 async def get_profile(request: Request):
@@ -242,25 +246,32 @@ def root():
 
 @app.post("/create-event")
 async def create_event(
-    payload: CreateEventRequest,
     request: Request,
     x_internal_api_key: str | None = Header(default=None),
 ):
-    print("Received from VAPI:", payload.model_dump())
+    raw_payload = await request.json()
+    print("Received from VAPI:", raw_payload)
 
     try:
-        tool_calls = payload.message.toolCalls
+        message = raw_payload.get("message") or {}
+        tool_calls = message.get("toolCalls") or message.get("tool_calls") or []
         if not tool_calls:
             return JSONResponse(
                 content={"error": "No tool calls found"},
                 status_code=400
             )
 
-        tool_call = tool_calls[0]
-        raw_arguments = tool_call.function.arguments
+        tool_call = tool_calls[0] or {}
+        function_payload = tool_call.get("function") or {}
+        raw_arguments = function_payload.get("arguments")
         if isinstance(raw_arguments, str):
             raw_arguments = json.loads(raw_arguments)
-        arguments = CreateEventArguments.model_validate(raw_arguments)
+        if not isinstance(raw_arguments, dict):
+            return JSONResponse(
+                content={"error": "Invalid function.arguments payload"},
+                status_code=400,
+            )
+        arguments = _parse_create_event_arguments(raw_arguments)
 
         user, _ = get_current_user_or_401(request)
         if not user:
@@ -364,7 +375,7 @@ async def create_event(
 
         return JSONResponse(content={
             "results": [{
-                "toolCallId": tool_call.id,
+                "toolCallId": tool_call.get("id", ""),
                 "result": f"Calendar event '{title}' has been successfully created for {name} on {date} at {time} for {duration}."
             }]
         })
