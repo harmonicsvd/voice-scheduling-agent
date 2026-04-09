@@ -1,12 +1,13 @@
 import hmac
+import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Query, Header
 from fastapi.responses import JSONResponse
 from app.config import settings
 from app.google_clients import get_calendar_service, build_oauth
 
-from pydantic import BaseModel, Field
-from typing import Literal
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Literal, Any
 
 from app.db import init_db, get_db
 
@@ -66,10 +67,11 @@ class CreateEventArguments(BaseModel):
     meeting_mode: Literal["online", "in_person"]
     location: str | None = None
     city: str | None = None
+    user_sub: str | None = None
 
 
 class CreateEventFunctionPayload(BaseModel):
-    arguments: CreateEventArguments
+    arguments: Any
 
 
 class CreateEventToolCall(BaseModel):
@@ -78,7 +80,8 @@ class CreateEventToolCall(BaseModel):
 
 
 class CreateEventMessage(BaseModel):
-    toolCalls: list[CreateEventToolCall] = Field(default_factory=list)
+    model_config = ConfigDict(populate_by_name=True)
+    toolCalls: list[CreateEventToolCall] = Field(default_factory=list, alias="tool_calls")
 
 
 class CreateEventRequest(BaseModel):
@@ -238,11 +241,11 @@ def root():
     return {"status": "Voice Scheduling Agent is running!"}
 
 @app.post("/create-event")
-async def create_event(payload: CreateEventRequest, request: Request):
-    user, error = get_current_user_or_401(request)
-    if error:
-        return error
-
+async def create_event(
+    payload: CreateEventRequest,
+    request: Request,
+    x_internal_api_key: str | None = Header(default=None),
+):
     print("Received from VAPI:", payload.model_dump())
 
     try:
@@ -254,7 +257,16 @@ async def create_event(payload: CreateEventRequest, request: Request):
             )
 
         tool_call = tool_calls[0]
-        arguments = tool_call.function.arguments
+        raw_arguments = tool_call.function.arguments
+        if isinstance(raw_arguments, str):
+            raw_arguments = json.loads(raw_arguments)
+        arguments = CreateEventArguments.model_validate(raw_arguments)
+
+        user, _ = get_current_user_or_401(request)
+        if not user:
+            internal_err = require_internal_api_key(x_internal_api_key)
+            if internal_err:
+                return JSONResponse({"error": "authentication required"}, status_code=401)
 
         name = arguments.name
         date = arguments.date
@@ -263,6 +275,7 @@ async def create_event(payload: CreateEventRequest, request: Request):
         duration = arguments.duration
         meeting_mode = arguments.meeting_mode
         requested_city = (arguments.city or "").strip() or None
+        caller_sub = user.get("sub") if user else (arguments.user_sub or "").strip() or None
         location = (arguments.location or "").strip() or None
 
         resolved_city = None
@@ -278,11 +291,13 @@ async def create_event(payload: CreateEventRequest, request: Request):
                     city_source = "from_location"
 
             if not resolved_city:
-                with get_db() as conn:
-                    row = conn.execute(
-                        "SELECT default_city FROM user_profiles WHERE sub = ?",
-                        (user["sub"],),
-                    ).fetchone()
+                row = None
+                if caller_sub:
+                    with get_db() as conn:
+                        row = conn.execute(
+                            "SELECT default_city FROM user_profiles WHERE sub = ?",
+                            (caller_sub,),
+                        ).fetchone()
 
                 profile_city = (row["default_city"] or "").strip() if row else ""
                 if profile_city:
@@ -313,8 +328,9 @@ async def create_event(payload: CreateEventRequest, request: Request):
         service = get_calendar_service()
         metadata_parts = [
             f"meeting_mode:{meeting_mode}",
-            f"user_sub:{user.get('sub')}",
         ]
+        if caller_sub:
+            metadata_parts.append(f"user_sub:{caller_sub}")
         if resolved_city:
             metadata_parts.append(f"weather_city:{resolved_city}")
         if city_source:
