@@ -149,6 +149,41 @@ def test_create_event_falls_back_to_profile_default_city(test_context) -> None:
     assert "location" not in event_body
 
 
+def test_create_event_uses_profile_city_even_when_location_present(test_context) -> None:
+    client, db_path, created_payloads = test_context
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO user_profiles (sub, email, default_city, timezone, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "104659023322141767006",
+                "varadwork56@gmail.com",
+                "Frankfurt",
+                "Europe/Berlin",
+                "2026-04-08T10:00:00+00:00",
+            ),
+        )
+        conn.commit()
+
+    response = client.post(
+        "/create-event",
+        json=_payload(meeting_mode="in_person", location="Berlin Office"),
+    )
+
+    assert response.status_code == 200
+    assert len(created_payloads) == 1
+
+    event_body = created_payloads[0]["body"]
+    description = event_body["description"]
+    assert "weather_city:Frankfurt" in description
+    assert "city_source:profile_default" in description
+    assert event_body["location"] == "Berlin Office"
+    assert "weather_city:Berlin" not in description
+
+
 def test_create_event_returns_400_when_city_and_profile_missing(test_context) -> None:
     client, _db_path, _created_payloads = test_context
 

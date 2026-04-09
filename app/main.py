@@ -13,7 +13,9 @@ from app.db import init_db, get_db
 
 
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as dt_time
+from zoneinfo import ZoneInfo
+import httpx
 
 import re
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +53,9 @@ app.add_middleware(
 
 
 oauth = build_oauth()
+GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
+FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+HTTP_TIMEOUT_SECONDS = 10.0
 
 
 class ProfileUpdate(BaseModel):
@@ -90,6 +95,18 @@ def _parse_create_event_arguments(raw_arguments: dict) -> CreateEventArguments:
     if hasattr(CreateEventArguments, "model_validate"):
         return CreateEventArguments.model_validate(raw_arguments)
     return CreateEventArguments.parse_obj(raw_arguments)
+
+
+class MeetingsSummaryArguments(BaseModel):
+    user_sub: str | None = None
+    date: str | None = None  # YYYY-MM-DD
+    timezone: str = "Europe/Berlin"
+
+
+def _parse_meetings_summary_arguments(raw_arguments: dict) -> MeetingsSummaryArguments:
+    if hasattr(MeetingsSummaryArguments, "model_validate"):
+        return MeetingsSummaryArguments.model_validate(raw_arguments)
+    return MeetingsSummaryArguments.parse_obj(raw_arguments)
 
 
 @app.get("/profile")
@@ -291,34 +308,19 @@ async def create_event(
 
         resolved_city = None
         city_source = None
+
         if meeting_mode == "in_person":
             if requested_city:
                 resolved_city = requested_city
                 city_source = "provided"
-            elif location:
-                derived_city = _derive_city_from_location(location)
-                if derived_city:
-                    resolved_city = derived_city
-                    city_source = "from_location"
-
-            if not resolved_city:
-                row = None
-                if caller_sub:
-                    with get_db() as conn:
-                        row = conn.execute(
-                            "SELECT default_city FROM user_profiles WHERE sub = ?",
-                            (caller_sub,),
-                        ).fetchone()
-
-                profile_city = (row["default_city"] or "").strip() if row else ""
+            else:
+                profile_city = _lookup_profile_city(caller_sub)
                 if profile_city:
                     resolved_city = profile_city
                     city_source = "profile_default"
                 else:
                     return JSONResponse(
-                        content={
-                            "error": "city is required for in-person meetings (or set default city in profile)"
-                        },
+                        content={"error": "city is required for in-person meetings (or set default city in profile)"},
                         status_code=400,
                     )
 
@@ -422,12 +424,14 @@ def _list_events_payload(from_iso: str, to_iso: str) -> dict:
         elif "meeting_mode:in_person" in description:
             meeting_mode = "in_person"
 
-        # Backward-compatible fallback for older events that don't have
-        # weather_city metadata yet.
+        # Backward compatibility for old calendar events that were created
+        # before weather_city metadata existed.
         if not weather_city and meeting_mode == "in_person" and location:
-            weather_city = _derive_city_from_location(location)
-            if weather_city and not city_source:
-                city_source = "from_location"
+            legacy_city = _derive_city_from_location(location)
+            if legacy_city:
+                weather_city = legacy_city
+                if not city_source:
+                    city_source = "legacy_from_location"
 
         heuristic_virtual = (
             ("zoom" in (location or "").lower())
@@ -493,6 +497,103 @@ async def list_events_internal(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+@app.post("/meetings-weather-summary")
+async def meetings_weather_summary(
+    request: Request,
+    x_internal_api_key: str | None = Header(default=None),
+):
+    raw_payload = await request.json()
+
+    try:
+        message = raw_payload.get("message") or {}
+        tool_calls = message.get("toolCalls") or message.get("tool_calls") or []
+        tool_call_id = ""
+
+        if tool_calls:
+            tool_call = tool_calls[0] or {}
+            tool_call_id = tool_call.get("id", "")
+            function_payload = tool_call.get("function") or {}
+            raw_arguments = function_payload.get("arguments") or {}
+        else:
+            # Allow direct JSON body for local/manual testing without VAPI wrapper.
+            raw_arguments = raw_payload
+
+        if isinstance(raw_arguments, str):
+            raw_arguments = json.loads(raw_arguments)
+
+        if not isinstance(raw_arguments, dict):
+            return JSONResponse(
+                content={"error": "Invalid arguments payload"},
+                status_code=400,
+            )
+
+        arguments = _parse_meetings_summary_arguments(raw_arguments)
+
+        user, _ = get_current_user_or_401(request)
+        if user:
+            caller_sub = user.get("sub")
+        else:
+            internal_err = require_internal_api_key(x_internal_api_key)
+            if internal_err:
+                return JSONResponse({"error": "authentication required"}, status_code=401)
+            caller_sub = (arguments.user_sub or "").strip() or None
+
+        if not caller_sub:
+            return JSONResponse(
+                content={"error": "user_sub is required for server-to-server calls"},
+                status_code=400,
+            )
+
+        summary = _generate_meetings_weather_summary(
+            user_sub=caller_sub,
+            target_date=arguments.date,
+            timezone_name=arguments.timezone,
+        )
+
+        if tool_call_id:
+            return JSONResponse(
+                content={
+                    "results": [
+                        {
+                            "toolCallId": tool_call_id,
+                            "result": summary["summary_text"],
+                        }
+                    ],
+                    "data": summary,
+                }
+            )
+
+        return JSONResponse(content=summary)
+
+    except ValueError as e:
+        return JSONResponse(content={"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.get("/internal/meetings-weather-summary")
+async def meetings_weather_summary_internal(
+    user_sub: str = Query(..., description="Google user sub"),
+    date: str | None = Query(default=None, description="YYYY-MM-DD"),
+    tz: str = Query(default="Europe/Berlin", description="IANA timezone"),
+    x_internal_api_key: str | None = Header(default=None),
+):
+    err = require_internal_api_key(x_internal_api_key)
+    if err:
+        return err
+
+    try:
+        return _generate_meetings_weather_summary(
+            user_sub=user_sub,
+            target_date=date,
+            timezone_name=tz,
+        )
+    except ValueError as e:
+        return JSONResponse(content={"error": str(e)}, status_code=400)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
 @app.get("/auth/google/login")
 async def auth_google_login(request: Request):
     redirect_uri = request.url_for("auth_google_callback")
@@ -539,3 +640,230 @@ def get_current_user_or_401(request: Request):
     if not user:
         return None, JSONResponse({"error": "authentication required"}, status_code=401)
     return user, None
+
+def _lookup_profile_city(sub: str | None) -> str | None:
+    if not sub:
+        return None
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT default_city FROM user_profiles WHERE sub = ?",
+            (sub,),
+        ).fetchone()
+
+    city = (row["default_city"] or "").strip() if row else ""
+    return city or None
+
+
+def _to_utc_iso_z(dt: datetime) -> str:
+    return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _day_window_utc(target_date: str | None, timezone_name: str) -> tuple[str, str, str, str]:
+    try:
+        tz = ZoneInfo(timezone_name)
+        resolved_tz = timezone_name
+    except Exception:
+        tz = ZoneInfo("UTC")
+        resolved_tz = "UTC"
+
+    if target_date:
+        try:
+            local_day = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ValueError("date must be in YYYY-MM-DD format") from exc
+    else:
+        local_day = datetime.now(tz).date()
+
+    start_local = datetime.combine(local_day, dt_time.min, tz)
+    end_local = start_local + timedelta(days=1)
+
+    from_iso = _to_utc_iso_z(start_local.astimezone(timezone.utc))
+    to_iso = _to_utc_iso_z(end_local.astimezone(timezone.utc))
+    return from_iso, to_iso, local_day.isoformat(), resolved_tz
+
+
+def _format_event_time(start_value: str | None, timezone_name: str) -> str:
+    if not start_value:
+        return "unknown time"
+    try:
+        dt = datetime.fromisoformat(start_value.replace("Z", "+00:00"))
+        try:
+            dt = dt.astimezone(ZoneInfo(timezone_name))
+        except Exception:
+            pass
+        return dt.strftime("%H:%M")
+    except Exception:
+        return "unknown time"
+
+
+def _fetch_current_weather_by_city(city: str) -> dict[str, Any] | None:
+    city = (city or "").strip()
+    if not city:
+        return None
+
+    try:
+        with httpx.Client(
+            timeout=HTTP_TIMEOUT_SECONDS,
+            headers={"User-Agent": "voice-scheduling-agent/1.0"},
+        ) as client:
+            geocode = client.get(
+                GEOCODE_URL,
+                params={"name": city, "count": 1, "language": "en", "format": "json"},
+            )
+            geocode.raise_for_status()
+            results = (geocode.json() or {}).get("results") or []
+            if not results:
+                return None
+
+            top = results[0]
+            latitude = top["latitude"]
+            longitude = top["longitude"]
+
+            forecast = client.get(
+                FORECAST_URL,
+                params={
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "current": "temperature_2m,wind_speed_10m,weather_code",
+                    "timezone": "auto",
+                },
+            )
+            forecast.raise_for_status()
+            current = (forecast.json() or {}).get("current") or {}
+            if not current:
+                return None
+
+            return {
+                "temperature_c": current.get("temperature_2m"),
+                "wind_speed_kmh": current.get("wind_speed_10m"),
+                "weather_code": current.get("weather_code"),
+            }
+    except Exception:
+        return None
+
+
+def _score_weather_risk(weather_code: int | None, wind_speed_kmh: float | None) -> str:
+    code = weather_code or 0
+    wind = wind_speed_kmh or 0.0
+    if code >= 80 or wind >= 35:
+        return "high"
+    if code >= 60 or wind >= 20:
+        return "moderate"
+    return "low"
+
+
+def _generate_meetings_weather_summary(
+    user_sub: str,
+    target_date: str | None,
+    timezone_name: str,
+) -> dict[str, Any]:
+    from_iso, to_iso, resolved_date, resolved_tz = _day_window_utc(target_date, timezone_name)
+    events_payload = _list_events_payload(from_iso, to_iso)
+    all_events = events_payload.get("events") or []
+
+    # Only return events that belong to the requesting user.
+    user_events = [event for event in all_events if event.get("user_sub") == user_sub]
+
+    in_person_events: list[dict[str, Any]] = []
+    online_events: list[dict[str, Any]] = []
+    for event in user_events:
+        if event.get("meeting_mode") == "in_person" and not event.get("is_virtual", False):
+            in_person_events.append(event)
+        else:
+            online_events.append(event)
+
+    risk_summary: list[dict[str, Any]] = []
+    recommendations: list[str] = []
+
+    for event in in_person_events:
+        title = event.get("title") or "Untitled"
+        city = (event.get("city") or "").strip() or None
+        time_label = _format_event_time(event.get("start"), resolved_tz)
+
+        if not city:
+            risk_summary.append(
+                {
+                    "event_title": title,
+                    "city": None,
+                    "risk": "blocked",
+                    "reason": "missing city",
+                }
+            )
+            recommendations.append(
+                f"{title} at {time_label}: Add event city to evaluate weather risk."
+            )
+            continue
+
+        weather = _fetch_current_weather_by_city(city)
+        if not weather:
+            risk_summary.append(
+                {
+                    "event_title": title,
+                    "city": city,
+                    "risk": "unknown",
+                    "reason": "weather unavailable",
+                }
+            )
+            recommendations.append(
+                f"{title} at {time_label} ({city}): Weather data unavailable."
+            )
+            continue
+
+        risk = _score_weather_risk(weather.get("weather_code"), weather.get("wind_speed_kmh"))
+        risk_summary.append(
+            {
+                "event_title": title,
+                "city": city,
+                "risk": risk,
+                "weather_code": weather.get("weather_code"),
+                "wind_speed_kmh": weather.get("wind_speed_kmh"),
+                "temperature_c": weather.get("temperature_c"),
+            }
+        )
+
+        if risk == "high":
+            recommendations.append(
+                f"{title} at {time_label} ({city}): high weather risk. Consider rescheduling or moving online."
+            )
+        elif risk == "moderate":
+            recommendations.append(
+                f"{title} at {time_label} ({city}): moderate weather risk. Plan extra travel buffer."
+            )
+        else:
+            recommendations.append(f"{title} at {time_label} ({city}): low weather risk.")
+
+    if not user_events:
+        summary_text = f"You have no meetings on {resolved_date}."
+    else:
+        lines = [
+            f"On {resolved_date}, you have {len(user_events)} meetings: "
+            f"{len(in_person_events)} in-person and {len(online_events)} online."
+        ]
+
+        if online_events:
+            online_labels = [
+                f"{event.get('title', 'Untitled')} at {_format_event_time(event.get('start'), resolved_tz)}"
+                for event in online_events
+            ]
+            lines.append("Online meetings: " + "; ".join(online_labels) + ".")
+
+        if recommendations:
+            lines.append("Weather guidance: " + " ".join(recommendations))
+
+        summary_text = " ".join(lines)
+
+    return {
+        "user_sub": user_sub,
+        "date": resolved_date,
+        "timezone": resolved_tz,
+        "counts": {
+            "total": len(user_events),
+            "in_person": len(in_person_events),
+            "online": len(online_events),
+        },
+        "events": user_events,
+        "risk_summary": risk_summary,
+        "recommendations": recommendations,
+        "summary_text": summary_text,
+    }
