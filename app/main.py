@@ -2,7 +2,7 @@ import hmac
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Query, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from app.config import settings
 from app.google_clients import get_calendar_service, build_oauth
 
@@ -260,6 +260,21 @@ async def get_vapi_key():
 @app.get("/")
 def root():
     return {"status": "Voice Scheduling Agent is running!"}
+
+
+@app.head("/")
+def root_head():
+    return Response(status_code=200)
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+@app.head("/health")
+def health_head():
+    return Response(status_code=200)
 
 @app.post("/create-event")
 async def create_event(
