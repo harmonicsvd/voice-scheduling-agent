@@ -194,3 +194,50 @@ def test_create_event_returns_400_when_city_and_profile_missing(test_context) ->
         response.json()["error"]
         == "city is required for in-person meetings (or set default city in profile)"
     )
+
+
+def test_create_event_requires_user_sub_for_server_calls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db_path = tmp_path / "test_app.db"
+    _init_db(db_path)
+
+    def _get_db():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    monkeypatch.setattr(main_module, "get_db", _get_db)
+    monkeypatch.setattr(
+        main_module,
+        "get_current_user_or_401",
+        lambda request: (None, None),
+    )
+    monkeypatch.setattr(main_module, "require_internal_api_key", lambda _key: None)
+
+    class _FakeInsertCall:
+        def execute(self):
+            return {"htmlLink": "https://example.com/event"}
+
+    class _FakeEventsAPI:
+        def insert(self, calendarId: str, body: dict):
+            return _FakeInsertCall()
+
+    class _FakeCalendarService:
+        def events(self):
+            return _FakeEventsAPI()
+
+    monkeypatch.setattr(main_module, "get_calendar_service", lambda: _FakeCalendarService())
+
+    payload = _payload(meeting_mode="online")
+    # Simulate VAPI missing user_sub in server-to-server call.
+    payload["message"]["toolCalls"][0]["function"]["arguments"].pop("user_sub", None)
+
+    with TestClient(main_module.app) as client:
+        response = client.post(
+            "/create-event",
+            json=payload,
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "user_sub is required for server-to-server calls"

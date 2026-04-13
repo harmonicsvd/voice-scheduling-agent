@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, Response
 from app.config import settings
 from app.google_clients import get_calendar_service, build_oauth
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing import Literal, Any
 
 from app.db import init_db, get_db
@@ -64,7 +64,7 @@ class ProfileUpdate(BaseModel):
 
 
 class CreateEventArguments(BaseModel):
-    name: str = "Guest"
+    name: str = Field(min_length=1)
     date: str
     time: str
     title: str = "Meeting"
@@ -311,15 +311,27 @@ async def create_event(
             if internal_err:
                 return JSONResponse({"error": "authentication required"}, status_code=401)
 
-        name = arguments.name
-        date = arguments.date
-        time = arguments.time
-        title = arguments.title
-        duration = arguments.duration
+        name = (arguments.name or "").strip()
+        date = (arguments.date or "").strip()
+        time = (arguments.time or "").strip()
+        title = (arguments.title or "").strip() or "Meeting"
+        duration = (arguments.duration or "").strip() or "1 hour"
         meeting_mode = arguments.meeting_mode
         requested_city = (arguments.city or "").strip() or None
         caller_sub = user.get("sub") if user else (arguments.user_sub or "").strip() or None
         location = (arguments.location or "").strip() or None
+
+        if not name:
+            return JSONResponse(content={"error": "name is required"}, status_code=400)
+        if not date:
+            return JSONResponse(content={"error": "date is required"}, status_code=400)
+        if not time:
+            return JSONResponse(content={"error": "time is required"}, status_code=400)
+        if not caller_sub:
+            return JSONResponse(
+                content={"error": "user_sub is required for server-to-server calls"},
+                status_code=400,
+            )
 
         resolved_city = None
         city_source = None
@@ -397,6 +409,11 @@ async def create_event(
             }]
         })
 
+    except ValidationError as e:
+        return JSONResponse(
+            content={"error": "invalid create-event arguments", "details": e.errors()},
+            status_code=422,
+        )
     except Exception as e:
         print("Error:", e)
         return JSONResponse(
