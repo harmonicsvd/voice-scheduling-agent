@@ -416,6 +416,8 @@ div[style*="position: fixed"][style*="bottom"] {
 
   <script src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js"></script>
   <script>
+
+
     // ── In-memory meetings store ──
     var meetings = [];
 
@@ -494,8 +496,16 @@ div[style*="position: fixed"][style*="bottom"] {
 
    window.addEventListener('load', async function () {
   try {
+    const meRes = await fetch('/auth/me', { credentials: 'include' });
+    if (meRes.status !== 200) {
+      window.location.href = '/login';
+      return;
+    }
+    const me = await meRes.json();
+    window.USER_SUB = (me.user && me.user.sub) ? me.user.sub : '';
+
     document.getElementById('status').textContent = 'Initializing...';
-    const res = await fetch('https://voice-scheduling-agent-rmxa.onrender.com/vapi-key');
+    const res = await fetch('/vapi-key');
     const { apiKey } = await res.json();
     document.getElementById('status').textContent = '';
 
@@ -552,11 +562,19 @@ div[style*="position: fixed"][style*="bottom"] {
 if (result === window._lastProcessedResult) return;
 window._lastProcessedResult = result;
 console.log('Tool result found:', result);
-          var dateMatch  = result.match(/(\d{4}-\d{2}-\d{2})/);
-          var titleMatch = result.match(/['"](.+?)['"]/);
-          if (dateMatch) highlightDate(dateMatch[1], titleMatch ? titleMatch[1] : 'Meeting');
 
-          addMeeting(result);
+// Only treat as "created meeting" when backend confirms creation text
+var isCreateSuccess = /has been successfully created/i.test(result);
+
+if (isCreateSuccess) {
+  var dateMatch  = result.match(/(\d{4}-\d{2}-\d{2})/);
+  var titleMatch = result.match(/['"](.+?)['"]/);
+  if (dateMatch) {
+    highlightDate(dateMatch[1], titleMatch ? titleMatch[1] : 'Meeting');
+  }
+  addMeeting(result);
+}
+
         });
 
         console.log('VAPI ready');
@@ -574,12 +592,23 @@ console.log('Tool result found:', result);
       if (callActive) {
         vapiInstance.stop();
       } else {
+        if (!window.USER_SUB) {
+          document.getElementById('status').textContent = 'Login missing. Please sign in again.';
+          document.getElementById('status').className   = 'status error';
+          return;
+        }
+
         isLoading = true;
         document.getElementById('micBtn').classList.add('loading');
         document.getElementById('status').textContent = 'Connecting...';
         document.getElementById('status').className   = 'status';
-        vapiInstance.start('c5ba8d95-1eff-4579-bca1-f87bb5ded13d')
-          .catch(function () {
+        vapiInstance.start('c5ba8d95-1eff-4579-bca1-f87bb5ded13d', {
+          variableValues: {
+            user_sub: window.USER_SUB
+          }
+        })
+          .catch(function (err) {
+            console.error('VAPI start failed', err);
             isLoading = false;
             document.getElementById('micBtn').classList.remove('loading');
             document.getElementById('status').textContent = 'Could not connect, please try again.';

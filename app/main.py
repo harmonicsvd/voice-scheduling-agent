@@ -2,7 +2,9 @@ import hmac
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Query, Header
-from fastapi.responses import JSONResponse, Response
+from pathlib import Path
+from fastapi.responses import JSONResponse, Response, RedirectResponse, FileResponse
+
 from app.config import settings
 from app.google_clients import get_calendar_service, build_oauth
 
@@ -16,6 +18,7 @@ from app.db import init_db, get_db
 from datetime import datetime, timedelta, timezone, time as dt_time
 from zoneinfo import ZoneInfo
 import httpx
+import time as time_module
 
 import re
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,7 +58,12 @@ app.add_middleware(
 oauth = build_oauth()
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-HTTP_TIMEOUT_SECONDS = 10.0
+HTTP_TIMEOUT_SECONDS = 2.0
+WEATHER_LOOKUP_BUDGET_SECONDS = 12.0
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+LOGIN_HTML = BASE_DIR / "login.html"
+VOICE_HTML = BASE_DIR / "index.html"
 
 
 class ProfileUpdate(BaseModel):
@@ -107,6 +115,58 @@ def _parse_meetings_summary_arguments(raw_arguments: dict) -> MeetingsSummaryArg
     if hasattr(MeetingsSummaryArguments, "model_validate"):
         return MeetingsSummaryArguments.model_validate(raw_arguments)
     return MeetingsSummaryArguments.parse_obj(raw_arguments)
+
+
+def _extract_user_sub(raw_payload: dict, explicit_sub: str | None) -> str | None:
+    candidate = (explicit_sub or "").strip()
+    if candidate:
+        return candidate
+
+    direct_paths = [
+        raw_payload.get("user_sub"),
+        (((raw_payload.get("assistantOverrides") or {}).get("variableValues") or {}).get("user_sub")),
+        (((raw_payload.get("assistant_overrides") or {}).get("variable_values") or {}).get("user_sub")),
+        (((raw_payload.get("message") or {}).get("assistantOverrides") or {}).get("variableValues", {}).get("user_sub")),
+        (((raw_payload.get("call") or {}).get("assistantOverrides") or {}).get("variableValues", {}).get("user_sub")),
+        (((raw_payload.get("call") or {}).get("assistantOverrides") or {}).get("metadata", {}).get("user_sub")),
+        (((raw_payload.get("assistantOverrides") or {}).get("metadata") or {}).get("user_sub")),
+    ]
+    for value in direct_paths:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    def _walk(value: Any) -> str | None:
+        if isinstance(value, dict):
+            maybe = value.get("user_sub")
+            if isinstance(maybe, str) and maybe.strip():
+                return maybe.strip()
+            for nested in value.values():
+                found = _walk(nested)
+                if found:
+                    return found
+        elif isinstance(value, list):
+            for nested in value:
+                found = _walk(nested)
+                if found:
+                    return found
+        return None
+
+    return _walk(raw_payload)
+
+
+@app.get("/login")
+async def login_page(request: Request):
+    return FileResponse(LOGIN_HTML)
+
+@app.get("/assistant")
+async def assistant_page(request: Request):
+    user, _ = get_current_user_or_401(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    if not user.get("sub"):
+        request.session.clear()
+        return RedirectResponse(url="/login", status_code=302)
+    return FileResponse(VOICE_HTML)
 
 
 @app.get("/profile")
@@ -259,7 +319,7 @@ async def get_vapi_key():
 
 @app.get("/")
 def root():
-    return {"status": "Voice Scheduling Agent is running!"}
+    return RedirectResponse(url="/login", status_code=302)
 
 
 @app.head("/")
@@ -318,7 +378,7 @@ async def create_event(
         duration = (arguments.duration or "").strip() or "1 hour"
         meeting_mode = arguments.meeting_mode
         requested_city = (arguments.city or "").strip() or None
-        caller_sub = user.get("sub") if user else (arguments.user_sub or "").strip() or None
+        caller_sub = user.get("sub") if user else _extract_user_sub(raw_payload, arguments.user_sub)
         location = (arguments.location or "").strip() or None
 
         if not name:
@@ -329,7 +389,10 @@ async def create_event(
             return JSONResponse(content={"error": "time is required"}, status_code=400)
         if not caller_sub:
             return JSONResponse(
-                content={"error": "user_sub is required for server-to-server calls"},
+                content={
+                    "error": "user_sub is required for server-to-server calls",
+                    "hint": "Pass assistantOverrides.variableValues.user_sub and map tool arg user_sub to {{user_sub}}",
+                },
                 status_code=400,
             )
 
@@ -568,11 +631,14 @@ async def meetings_weather_summary(
             internal_err = require_internal_api_key(x_internal_api_key)
             if internal_err:
                 return JSONResponse({"error": "authentication required"}, status_code=401)
-            caller_sub = (arguments.user_sub or "").strip() or None
+            caller_sub = _extract_user_sub(raw_payload, arguments.user_sub)
 
         if not caller_sub:
             return JSONResponse(
-                content={"error": "user_sub is required for server-to-server calls"},
+                content={
+                    "error": "user_sub is required for server-to-server calls",
+                    "hint": "Pass assistantOverrides.variableValues.user_sub and map tool arg user_sub to {{user_sub}}",
+                },
                 status_code=400,
             )
 
@@ -651,7 +717,9 @@ async def auth_google_callback(request: Request):
         "expires_at": token.get("expires_at"),
     }
 
-    return JSONResponse({"ok": True, "user": request.session["user"]})
+    user_sub = request.session["user"].get("sub", "")
+    return RedirectResponse(url=f"/assistant?user_sub={user_sub}", status_code=302)
+
 
 @app.get("/auth/me")
 async def auth_me(request: Request):
@@ -807,6 +875,9 @@ def _generate_meetings_weather_summary(
 
     risk_summary: list[dict[str, Any]] = []
     recommendations: list[str] = []
+    weather_cache: dict[str, dict[str, Any] | None] = {}
+    timed_out_city_keys: set[str] = set()
+    weather_deadline = time_module.monotonic() + WEATHER_LOOKUP_BUDGET_SECONDS
 
     for event in in_person_events:
         title = event.get("title") or "Untitled"
@@ -827,19 +898,31 @@ def _generate_meetings_weather_summary(
             )
             continue
 
-        weather = _fetch_current_weather_by_city(city)
+        city_key = city.strip().lower()
+        if city_key not in weather_cache:
+            if time_module.monotonic() > weather_deadline:
+                timed_out_city_keys.add(city_key)
+                weather_cache[city_key] = None
+            else:
+                weather_cache[city_key] = _fetch_current_weather_by_city(city)
+        weather = weather_cache[city_key]
         if not weather:
+            reason = "weather unavailable"
+            recommendation = f"{title} at {time_label} ({city}): Weather data unavailable."
+            if city_key in timed_out_city_keys:
+                reason = "weather lookup timeout budget reached"
+                recommendation = (
+                    f"{title} at {time_label} ({city}): Weather check skipped to keep response fast."
+                )
             risk_summary.append(
                 {
                     "event_title": title,
                     "city": city,
                     "risk": "unknown",
-                    "reason": "weather unavailable",
+                    "reason": reason,
                 }
             )
-            recommendations.append(
-                f"{title} at {time_label} ({city}): Weather data unavailable."
-            )
+            recommendations.append(recommendation)
             continue
 
         risk = _score_weather_risk(weather.get("weather_code"), weather.get("wind_speed_kmh"))

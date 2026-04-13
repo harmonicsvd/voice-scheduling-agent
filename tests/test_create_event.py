@@ -241,3 +241,55 @@ def test_create_event_requires_user_sub_for_server_calls(
 
     assert response.status_code == 400
     assert response.json()["error"] == "user_sub is required for server-to-server calls"
+
+
+def test_create_event_extracts_user_sub_from_assistant_overrides(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db_path = tmp_path / "test_app.db"
+    _init_db(db_path)
+
+    def _get_db():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    monkeypatch.setattr(main_module, "get_db", _get_db)
+    monkeypatch.setattr(
+        main_module,
+        "get_current_user_or_401",
+        lambda request: (None, None),
+    )
+    monkeypatch.setattr(main_module, "require_internal_api_key", lambda _key: None)
+
+    created_payloads: list[dict] = []
+
+    class _FakeInsertCall:
+        def __init__(self, payload: dict):
+            self._payload = payload
+
+        def execute(self):
+            created_payloads.append(self._payload)
+            return {"htmlLink": "https://example.com/event"}
+
+    class _FakeEventsAPI:
+        def insert(self, calendarId: str, body: dict):
+            return _FakeInsertCall({"calendarId": calendarId, "body": body})
+
+    class _FakeCalendarService:
+        def events(self):
+            return _FakeEventsAPI()
+
+    monkeypatch.setattr(main_module, "get_calendar_service", lambda: _FakeCalendarService())
+
+    payload = _payload(meeting_mode="online")
+    payload["message"]["toolCalls"][0]["function"]["arguments"].pop("user_sub", None)
+    payload["assistantOverrides"] = {"variableValues": {"user_sub": "104659023322141767006"}}
+
+    with TestClient(main_module.app) as client:
+        response = client.post("/create-event", json=payload)
+
+    assert response.status_code == 200
+    assert len(created_payloads) == 1
+    description = created_payloads[0]["body"]["description"]
+    assert "user_sub:104659023322141767006" in description
