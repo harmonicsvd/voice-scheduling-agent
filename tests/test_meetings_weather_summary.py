@@ -18,51 +18,17 @@ def test_meetings_weather_summary_with_vapi_wrapper(monkeypatch: pytest.MonkeyPa
     )
     monkeypatch.setattr(
         main_module,
-        "_list_events_payload",
-        lambda _from_iso, _to_iso: {
-            "events": [
-                {
-                    "title": "Client Visit",
-                    "start": "2026-04-10T11:00:00+02:00",
-                    "end": "2026-04-10T11:30:00+02:00",
-                    "location": "Berlin Office",
-                    "city": "Berlin",
-                    "city_source": "provided",
-                    "meeting_mode": "in_person",
-                    "is_virtual": False,
-                    "user_sub": "u1",
-                },
-                {
-                    "title": "Online Sync",
-                    "start": "2026-04-10T13:00:00+02:00",
-                    "end": "2026-04-10T13:20:00+02:00",
-                    "location": None,
-                    "city": None,
-                    "city_source": None,
-                    "meeting_mode": "online",
-                    "is_virtual": True,
-                    "user_sub": "u1",
-                },
-                {
-                    "title": "Other User Meeting",
-                    "start": "2026-04-10T15:00:00+02:00",
-                    "end": "2026-04-10T15:20:00+02:00",
-                    "location": None,
-                    "city": "Hamburg",
-                    "city_source": "provided",
-                    "meeting_mode": "in_person",
-                    "is_virtual": False,
-                    "user_sub": "u2",
-                },
-            ]
+        "_fetch_meetings_summary_from_weather_agent",
+        lambda **kwargs: {
+            "summary_text": "On 2026-04-10, you have 2 meetings: 1 in-person and 1 online.",
+            "counts": {"total": 2, "in_person": 1, "online": 1},
+            "risk_summary": [{"event_title": "Client Visit", "risk": "low"}],
+            "events": [],
+            "recommendations": [],
+            "date": "2026-04-10",
+            "timezone": "Europe/Berlin",
+            "user_sub": kwargs["user_sub"],
         },
-    )
-    monkeypatch.setattr(
-        main_module,
-        "_fetch_current_weather_by_city",
-        lambda city: {"temperature_c": 10.4, "wind_speed_kmh": 12.0, "weather_code": 2}
-        if city == "Berlin"
-        else None,
     )
 
     response = client.post(
@@ -98,7 +64,20 @@ def test_meetings_weather_summary_no_meetings(monkeypatch: pytest.MonkeyPatch, c
         "get_current_user_or_401",
         lambda request: ({"sub": "u1", "email": "u1@example.com"}, None),
     )
-    monkeypatch.setattr(main_module, "_list_events_payload", lambda _from_iso, _to_iso: {"events": []})
+    monkeypatch.setattr(
+        main_module,
+        "_fetch_meetings_summary_from_weather_agent",
+        lambda **kwargs: {
+            "summary_text": "You have no meetings on 2026-04-10.",
+            "counts": {"total": 0, "in_person": 0, "online": 0},
+            "risk_summary": [],
+            "events": [],
+            "recommendations": [],
+            "date": "2026-04-10",
+            "timezone": "Europe/Berlin",
+            "user_sub": kwargs["user_sub"],
+        },
+    )
 
     response = client.post(
         "/meetings-weather-summary",
@@ -122,21 +101,19 @@ def test_meetings_weather_summary_in_person_missing_city_is_blocked(
     )
     monkeypatch.setattr(
         main_module,
-        "_list_events_payload",
-        lambda _from_iso, _to_iso: {
-            "events": [
-                {
-                    "title": "Site Visit",
-                    "start": "2026-04-10T09:00:00+02:00",
-                    "end": "2026-04-10T10:00:00+02:00",
-                    "location": "Client HQ",
-                    "city": None,
-                    "city_source": None,
-                    "meeting_mode": "in_person",
-                    "is_virtual": False,
-                    "user_sub": "u1",
-                }
-            ]
+        "_fetch_meetings_summary_from_weather_agent",
+        lambda **kwargs: {
+            "summary_text": (
+                "On 2026-04-10, you have 1 meetings: 1 in-person and 0 online. "
+                "Weather guidance: Site Visit at 09:00: Add event city to evaluate weather risk."
+            ),
+            "counts": {"total": 1, "in_person": 1, "online": 0},
+            "risk_summary": [{"event_title": "Site Visit", "risk": "blocked"}],
+            "events": [],
+            "recommendations": ["Site Visit at 09:00: Add event city to evaluate weather risk."],
+            "date": "2026-04-10",
+            "timezone": "Europe/Berlin",
+            "user_sub": kwargs["user_sub"],
         },
     )
 

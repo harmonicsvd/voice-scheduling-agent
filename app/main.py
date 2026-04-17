@@ -154,6 +154,40 @@ def _extract_user_sub(raw_payload: dict, explicit_sub: str | None) -> str | None
     return _walk(raw_payload)
 
 
+def _fetch_meetings_summary_from_weather_agent(
+    *,
+    user_sub: str,
+    target_date: str | None,
+    timezone_name: str,
+) -> dict[str, Any]:
+    if not settings.weather_agent_base_url:
+        raise RuntimeError("WEATHER_AGENT_BASE_URL is not configured.")
+    if not settings.weather_agent_internal_api_key:
+        raise RuntimeError("WEATHER_AGENT_INTERNAL_API_KEY is not configured.")
+
+    params: dict[str, str] = {
+        "user_sub": user_sub,
+        "tz": timezone_name,
+    }
+    if target_date:
+        params["date"] = target_date
+
+    with httpx.Client(timeout=settings.weather_agent_timeout_seconds) as client:
+        response = client.get(
+            f"{settings.weather_agent_base_url}/internal/meeting-weather-summary",
+            params=params,
+            headers={"X-Internal-API-Key": settings.weather_agent_internal_api_key},
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Weather agent returned invalid summary payload.")
+    if "summary_text" not in payload:
+        raise RuntimeError("Weather agent response missing summary_text.")
+    return payload
+
+
 @app.get("/login")
 async def login_page(request: Request):
     return FileResponse(LOGIN_HTML)
@@ -642,7 +676,7 @@ async def meetings_weather_summary(
                 status_code=400,
             )
 
-        summary = _generate_meetings_weather_summary(
+        summary = _fetch_meetings_summary_from_weather_agent(
             user_sub=caller_sub,
             target_date=arguments.date,
             timezone_name=arguments.timezone,
@@ -681,7 +715,7 @@ async def meetings_weather_summary_internal(
         return err
 
     try:
-        return _generate_meetings_weather_summary(
+        return _fetch_meetings_summary_from_weather_agent(
             user_sub=user_sub,
             target_date=date,
             timezone_name=tz,
