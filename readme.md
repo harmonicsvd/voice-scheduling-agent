@@ -1,131 +1,104 @@
 # Voice Scheduling Agent
 
-A real-time voice assistant that schedules meetings and creates Google Calendar events through natural conversation.
+FastAPI backend + web client for authenticated voice-based meeting scheduling.
 
-**Live Demo:** https://voice-scheduling-agent-pi.vercel.app
+## What It Does
+- Handles Google OAuth login/session.
+- Accepts VAPI tool webhooks to create calendar events.
+- Exposes calendar read endpoints.
+- Stores user profile defaults (`default_city`, `timezone`).
+- Provides meetings summary endpoints by delegating weather scoring to `weather-agent`.
 
----
+## Scope
+This repository owns:
+- Auth/session + profile persistence
+- Calendar event creation and listing
+- VAPI webhook integration (`create-event`, `meetings-weather-summary`)
+- Frontend pages (`/login`, `/assistant`) and VAPI SDK bootstrap
 
-## How to Test
+It integrates with:
+- Google Calendar API
+- `weather-agent` internal API (`/internal/meeting-weather-summary`)
 
-1. Open the live URL above
-2. Click the microphone button
-3. Speak naturally — the agent will ask for your name, date, time, and meeting title
-4. Confirm the details
-5. The event gets created on Google Calendar automatically
+## API Surface
+Defined in `app/main.py`.
 
-> The agent confirms name spelling letter by letter and always reads 
-> back the date in plain language before confirming.
+### UI/Auth
+- `GET /` -> redirect to `/login`
+- `GET /login`
+- `GET /assistant`
+- `GET /auth/google/login`
+- `GET /auth/google/callback`
+- `GET /auth/me`
+- `POST /auth/logout`
 
-> The agent validates that the requested date is not in the past — 
-> if a past date is given it will ask the user to choose a future date.
+### Profile
+- `GET /profile`
+- `PUT /profile`
+- `GET /internal/profile/{sub}`
 
-> The agent uses the current real date dynamically — no hardcoded dates.
----
+### Calendar + Voice Tools
+- `POST /create-event`
+- `GET /events`
+- `GET /internal/events`
+- `POST /meetings-weather-summary`
+- `GET /internal/meetings-weather-summary`
 
-## Demo Video
+### Health
+- `GET /health`
+- `HEAD /health`
 
-👉 [Watch Demo on Google Drive](https://drive.google.com/file/d/17kCrG0xyrFIFySx9AJ40cIILDZwRM4BB/view?usp=sharing)
+## Tool Contracts
+### `createCalendarEvent`
+Expected arguments:
+- `name`, `date`, `time`
+- `meeting_mode` (`online` or `in_person`)
+- `location` (optional display location)
+- `city` (optional weather city; backend falls back to profile default city for in-person)
+- `user_sub` (required for server-to-server calls)
 
----
+### `getMeetingsSummary`
+Expected arguments:
+- `user_sub` (required)
+- `date` (`YYYY-MM-DD`, optional)
+- `timezone` (optional, default `Europe/Berlin`)
 
-## Stack
+## Integration With `weather-agent`
+Summary flow:
+1. `POST /meetings-weather-summary` receives tool call.
+2. Backend validates auth/internal key + resolves `user_sub`.
+3. Backend calls `GET {WEATHER_AGENT_BASE_URL}/internal/meeting-weather-summary`.
+4. Returns `summary_text` back to VAPI tool result.
 
-| Layer | Tool |
-|---|---|
-| Voice & STT/TTS | VAPI |
-| LLM | GPT-4.1 (via VAPI) |
-| Backend | FastAPI (Python) |
-| Calendar | Google Calendar API |
-| Frontend | HTML/CSS/JS |
-| Backend hosting | Render |
-| Frontend hosting | Vercel |
+## Configuration
+Use `example.env` as reference.
 
----
-
-## Architecture
-
+Required variables:
+```env
+CALENDAR_ID=
+SERVICE_ACCOUNT_JSON=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+APP_SECRET_KEY=
+INTERNAL_API_KEY=
+WEATHER_AGENT_BASE_URL=
+WEATHER_AGENT_INTERNAL_API_KEY=
+WEATHER_AGENT_TIMEOUT_SECONDS=20
+VAPI_PUBLIC_KEY=
+APP_DB_PATH=app.db
 ```
-User speaks → VAPI (STT + LLM) → createCalendarEvent tool call
-→ FastAPI backend (Render) → Google Calendar API → event created
-→ confirmation sent back to VAPI → agent confirms verbally
-→ frontend updates UI with new meeting
-```
 
----
-
-## Calendar Integration
-
-When the user confirms their meeting details, VAPI triggers a function called `createCalendarEvent` with the collected information — name, date, time, and duration.
-
-This sends a request to our FastAPI backend on Render at the `/create-event` endpoint. The backend parses the details and calculates the correct start and end times.
-
-To create the event, we use a **Google Service Account** — a way to give our backend direct access to Google Calendar without requiring any user login. The credentials are stored securely as environment variables on Render and never exposed in the code.
-
-The backend calls the **Google Calendar API v3**, creates the event, and returns a confirmation back to VAPI. VAPI reads the confirmation out loud, and the frontend updates the calendar grid and recent meetings tracker at the same time.
-
----
-
-## Run Locally
-
-The live deployed URL is the recommended way to test — no setup needed.
-
-For a quick local test:
-
-1. Clone the repo:
+## Run
 ```bash
-git clone https://github.com/harmonicsvd/voice-scheduling-agent.git
-cd voice-scheduling-agent
+python -m uvicorn app.main:app --reload
 ```
 
-2. Open `index.html` in your browser.
-
-The backend is already deployed on Render — the frontend connects to it automatically.
-
-**To run your own full instance** with your own credentials and calendar:
-
-1. Copy and fill in credentials:
+## Tests
 ```bash
-cp example.env .env
+python -m pytest -q
 ```
-2. Run the setup script:
-```bash
-chmod +x setup.sh
-./setup.sh
-```
-3. Deploy your backend to a public host (e.g. Render)
-4. Update the webhook URL in your VAPI dashboard to your deployed backend URL
 
----
-
-## Creative Design Decisions
-
-These were not part of the assignment brief — added to explore UX thinking and design ability.
-
-- **Full-page calendar grid background** — a subtle frosted Google Calendar-style grid sits behind all content, making the scheduling context visually clear without being distracting
-- **Date highlighting** — when a meeting is created, that date number in the background grid highlights green in real time, connecting the voice action to a visual calendar response for making it more appealing for user.
-- **Recent meetings tracker** — a live in-memory list shows all meetings scheduled in the current session, acting like a lightweight local database
-- **Circular mic button with ripple animation** — replaces the standard button with a more intentional voice-first interaction pattern
-- **VAPI default button hidden** — the SDK's floating button is suppressed and replaced entirely with the custom UI
-
----
-
-## Known Limitations
-
-- **Calendar grid is decorative** — the background grid does not reflect the actual days of the month or week alignment. It is a visual design element. A future version would render a proper month calendar.
-
-- **Shared calendar** — events are currently created on the developer's Google Calendar. Testers are welcome to create a few test events. In production, users would authenticate via Google OAuth to schedule on their own calendars.
-
-- **STT accuracy on uncommon names** — speech-to-text occasionally mishears non-English names. The agent asks for letter-by-letter spelling confirmation to mitigate this.
-
-- **LLM duration parsing** — the model occasionally returns duration as words instead of numbers (e.g. "one hour"). The backend handles this with a custom parser that combines a word-to-number mapping for common values with regex pattern matching to convert any duration format into minutes correctly.
-
-- **Render cold starts** — the free Render tier sleeps after inactivity. First load may take 30-50 seconds while the backend wakes up.
-
----
-
-## Submission
-
-- **GitHub:** https://github.com/harmonicsvd/voice-scheduling-agent
-- **Live URL:** https://voice-scheduling-agent-pi.vercel.app
-- **Demo Video:** 👉 [Watch on Google Drive](https://drive.google.com/file/d/17kCrG0xyrFIFySx9AJ40cIILDZwRM4BB/view?usp=sharing)
+## Notes
+- Server-to-server calls require `X-Internal-API-Key`.
+- Browser login session does not replace server-to-server auth headers.
+- `user_sub` must be passed to tool calls (directly or via assistant variable mapping).
