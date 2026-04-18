@@ -70,6 +70,10 @@ Summary flow:
 3. Backend calls `GET {WEATHER_AGENT_BASE_URL}/internal/meeting-weather-summary`.
 4. Returns `summary_text` back to VAPI tool result.
 
+Weather-agent summary generation is hybrid:
+- deterministic event-time risk scoring (`low/moderate/high/blocked/unknown`)
+- structured LLM rewrite for recommendation wording
+
 ## Configuration
 Use `example.env` as reference.
 
