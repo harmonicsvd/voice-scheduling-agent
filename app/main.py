@@ -28,6 +28,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Initialize persistent resources once at process startup."""
     init_db()   # runs once when server starts
     yield       # app serves requests here
     # optional cleanup when server stops
@@ -63,11 +64,13 @@ VOICE_HTML = BASE_DIR / "index.html"
 
 
 class ProfileUpdate(BaseModel):
+    """Validated payload for updating user profile preferences."""
     default_city: str = Field(min_length=2, max_length=80)
     timezone: str = Field(default="Europe/Berlin", min_length=3, max_length=80)
 
 
 class CreateEventArguments(BaseModel):
+    """Arguments expected from VAPI create-event tool call."""
     name: str = Field(min_length=1)
     date: str
     time: str
@@ -80,40 +83,53 @@ class CreateEventArguments(BaseModel):
 
 
 class CreateEventFunctionPayload(BaseModel):
+    """Wrapper for tool call `function.arguments` payload."""
     arguments: Any
 
 
 class CreateEventToolCall(BaseModel):
+    """Single tool call item from VAPI message envelope."""
     id: str
     function: CreateEventFunctionPayload
 
 
 class CreateEventMessage(BaseModel):
+    """VAPI message envelope containing one or more tool calls."""
     toolCalls: list[CreateEventToolCall] = Field(default_factory=list)
 
 
 class CreateEventRequest(BaseModel):
+    """Top-level create-event webhook body contract."""
     message: CreateEventMessage
     
 def _parse_create_event_arguments(raw_arguments: dict) -> CreateEventArguments:
+    """Support Pydantic v1/v2 parsing with one compatibility helper."""
     if hasattr(CreateEventArguments, "model_validate"):
         return CreateEventArguments.model_validate(raw_arguments)
     return CreateEventArguments.parse_obj(raw_arguments)
 
 
 class MeetingsSummaryArguments(BaseModel):
+    """Arguments expected from VAPI meetings-summary tool call."""
     user_sub: str | None = None
     date: str | None = None  # YYYY-MM-DD
     timezone: str = "Europe/Berlin"
 
 
 def _parse_meetings_summary_arguments(raw_arguments: dict) -> MeetingsSummaryArguments:
+    """Support Pydantic v1/v2 parsing for meetings-summary arguments."""
     if hasattr(MeetingsSummaryArguments, "model_validate"):
         return MeetingsSummaryArguments.model_validate(raw_arguments)
     return MeetingsSummaryArguments.parse_obj(raw_arguments)
 
 
 def _extract_user_sub(raw_payload: dict, explicit_sub: str | None) -> str | None:
+    """
+    Resolve `user_sub` from explicit args or common VAPI override locations.
+
+    Keeps backend resilient to slight payload-shape differences between
+    dashboard tool tests, live calls, and SDK wrapper variants.
+    """
     # Priority 1: explicit argument from parsed tool input.
     candidate = (explicit_sub or "").strip()
     if candidate:
@@ -159,6 +175,12 @@ def _fetch_meetings_summary_from_weather_agent(
     target_date: str | None,
     timezone_name: str,
 ) -> dict[str, Any]:
+    """
+    Call weather-agent internal summary endpoint and validate minimal contract.
+
+    This function is the cross-service boundary between voice backend and
+    weather reasoning backend.
+    """
     # Voice backend delegates weather reasoning to weather-agent API.
     if not settings.weather_agent_base_url:
         raise RuntimeError("WEATHER_AGENT_BASE_URL is not configured.")
@@ -190,10 +212,12 @@ def _fetch_meetings_summary_from_weather_agent(
 
 @app.get("/login")
 async def login_page(request: Request):
+    """Serve login UI entrypoint."""
     return FileResponse(LOGIN_HTML)
 
 @app.get("/assistant")
 async def assistant_page(request: Request):
+    """Serve assistant UI only for authenticated sessions."""
     user, _ = get_current_user_or_401(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
@@ -205,6 +229,7 @@ async def assistant_page(request: Request):
 
 @app.get("/profile")
 async def get_profile(request: Request):
+    """Return current user profile from SQLite for authenticated browser user."""
     user, error = get_current_user_or_401(request)
     if error:
         return error
@@ -226,6 +251,7 @@ async def get_profile(request: Request):
 
 @app.put("/profile")
 async def put_profile(payload: ProfileUpdate, request: Request):
+    """Upsert current user profile preferences."""
     user, error = get_current_user_or_401(request)
     if error:
         return error
@@ -256,6 +282,7 @@ async def put_profile(payload: ProfileUpdate, request: Request):
     return {"ok": True}
 
 def require_internal_api_key(x_internal_api_key: str | None):
+    """Guard internal endpoints with constant-time API key comparison."""
     if not settings.internal_api_key:
         return JSONResponse({"error": "internal api key not configured"}, status_code=500)
     if not x_internal_api_key or not hmac.compare_digest(x_internal_api_key, settings.internal_api_key):
@@ -267,6 +294,7 @@ async def get_internal_profile(
     sub: str,
     x_internal_api_key: str | None = Header(default=None),
 ):
+    """Internal endpoint for backend callers to fetch profile by Google `sub`."""
     err = require_internal_api_key(x_internal_api_key)
     if err:
         return err
@@ -287,6 +315,7 @@ async def get_internal_profile(
     return {"profile": dict(row)}
 
 def parse_duration_to_minutes(duration_str):
+    """Convert natural duration text into integer minutes."""
     duration_str = duration_str.lower()
     
     # Convert word numbers to digits 
@@ -347,27 +376,32 @@ def _derive_city_from_location(location: str | None) -> str | None:
 
 @app.get("/vapi-key")
 async def get_vapi_key():
+    """Return public VAPI key used by browser client."""
     return JSONResponse(content={
         "apiKey": settings.vapi_public_key
     })
 
 @app.get("/")
 def root():
+    """Default root route redirects users to login."""
     return RedirectResponse(url="/login", status_code=302)
 
 
 @app.head("/")
 def root_head():
+    """HEAD probe for root path (used by some hosting health checks)."""
     return Response(status_code=200)
 
 
 @app.get("/health")
 def health():
+    """Simple liveness endpoint."""
     return {"ok": True}
 
 
 @app.head("/health")
 def health_head():
+    """HEAD variant for liveness checks."""
     return Response(status_code=200)
 
 @app.post("/create-event")
@@ -614,6 +648,7 @@ async def list_events(
     from_iso: str = Query(..., description="ISO start datetime"),
     to_iso: str = Query(..., description="ISO end datetime"),
 ):
+    """Browser-authenticated calendar listing endpoint."""
     user, error = get_current_user_or_401(request)
     if error:
         return error
@@ -630,6 +665,7 @@ async def list_events_internal(
     to_iso: str = Query(..., description="ISO end datetime"),
     x_internal_api_key: str | None = Header(default=None),
 ):
+    """Internal calendar listing endpoint for backend callers."""
     err = require_internal_api_key(x_internal_api_key)
     if err:
         return err
@@ -728,6 +764,7 @@ async def meetings_weather_summary_internal(
     tz: str = Query(default="Europe/Berlin", description="IANA timezone"),
     x_internal_api_key: str | None = Header(default=None),
 ):
+    """Internal pass-through summary endpoint for trusted backend consumers."""
     err = require_internal_api_key(x_internal_api_key)
     if err:
         return err
@@ -746,12 +783,14 @@ async def meetings_weather_summary_internal(
 
 @app.get("/auth/google/login")
 async def auth_google_login(request: Request):
+    """Start Google OAuth browser redirect flow."""
     redirect_uri = request.url_for("auth_google_callback")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @app.get("/auth/google/callback")
 async def auth_google_callback(request: Request):
+    """Handle Google OAuth callback and persist session identity."""
     token = await oauth.google.authorize_access_token(request)
     user_info = token.get("userinfo")
 
@@ -775,6 +814,7 @@ async def auth_google_callback(request: Request):
 
 @app.get("/auth/me")
 async def auth_me(request: Request):
+    """Return current session user data for frontend bootstrapping."""
     user = request.session.get("user")
     if not user:
         return JSONResponse({"authenticated": False}, status_code=401)
@@ -783,17 +823,20 @@ async def auth_me(request: Request):
 
 @app.post("/auth/logout")
 async def auth_logout(request: Request):
+    """Clear browser session data."""
     request.session.clear()
     return {"ok": True}
 
 
 def get_current_user_or_401(request: Request):
+    """Small auth helper returning `(user, error_response)` tuple."""
     user = request.session.get("user")
     if not user:
         return None, JSONResponse({"error": "authentication required"}, status_code=401)
     return user, None
 
 def _lookup_profile_city(sub: str | None) -> str | None:
+    """Read default city from local profile DB for fallback event city logic."""
     if not sub:
         return None
 

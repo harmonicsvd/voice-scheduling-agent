@@ -10,6 +10,7 @@ from app import main as main_module
 
 
 def _init_db(db_path: Path) -> None:
+    """Create minimal test DB schema used by create-event endpoint tests."""
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
@@ -31,6 +32,7 @@ def _payload(
     city: str | None = None,
     location: str | None = None,
 ) -> dict:
+    """Build VAPI-style tool-call payload with optional city/location fields."""
     arguments = {
         "name": "Varad",
         "date": "2026-04-08",
@@ -60,6 +62,7 @@ def _payload(
 
 @pytest.fixture
 def test_context(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Shared fixture: isolated DB + mocked auth + mocked Google Calendar insert."""
     db_path = tmp_path / "test_app.db"
     _init_db(db_path)
 
@@ -103,6 +106,7 @@ def test_context(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 def test_create_event_uses_provided_city(test_context) -> None:
+    """When city is provided, metadata should mark `city_source:provided`."""
     client, _db_path, created_payloads = test_context
 
     response = client.post(
@@ -121,6 +125,7 @@ def test_create_event_uses_provided_city(test_context) -> None:
 
 
 def test_create_event_falls_back_to_profile_default_city(test_context) -> None:
+    """Missing city should fall back to user profile default city when available."""
     client, db_path, created_payloads = test_context
 
     with sqlite3.connect(db_path) as conn:
@@ -152,6 +157,7 @@ def test_create_event_falls_back_to_profile_default_city(test_context) -> None:
 
 
 def test_create_event_uses_profile_city_even_when_location_present(test_context) -> None:
+    """Free-form location should not override profile city when explicit city missing."""
     client, db_path, created_payloads = test_context
 
     with sqlite3.connect(db_path) as conn:
@@ -187,6 +193,7 @@ def test_create_event_uses_profile_city_even_when_location_present(test_context)
 
 
 def test_create_event_returns_400_when_city_and_profile_missing(test_context) -> None:
+    """In-person create-event must fail when neither explicit nor profile city exists."""
     client, _db_path, _created_payloads = test_context
 
     response = client.post("/create-event", json=_payload(meeting_mode="in_person"))
@@ -201,6 +208,7 @@ def test_create_event_returns_400_when_city_and_profile_missing(test_context) ->
 def test_create_event_requires_user_sub_for_server_calls(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Server-to-server calls must provide user_sub when session auth is absent."""
     db_path = tmp_path / "test_app.db"
     _init_db(db_path)
 
@@ -248,6 +256,7 @@ def test_create_event_requires_user_sub_for_server_calls(
 def test_create_event_extracts_user_sub_from_assistant_overrides(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Extractor should resolve user_sub from assistantOverrides when arg is absent."""
     db_path = tmp_path / "test_app.db"
     _init_db(db_path)
 

@@ -9,6 +9,7 @@ load_dotenv()
 
 @dataclass(frozen=True)
 class Settings:
+    """Typed view of environment configuration for the voice backend."""
     # Google Calendar service-account credentials for event creation.
     calendar_id: str = os.getenv("CALENDAR_ID", "")
     service_account_json: str | None = os.getenv("SERVICE_ACCOUNT_JSON")

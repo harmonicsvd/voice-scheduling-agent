@@ -5,6 +5,7 @@ from app.config import settings
 
 
 def get_db():
+    """Return SQLite connection configured for row-by-name access."""
     # sqlite Row factory enables dict-like column access (row["default_city"]).
     conn = sqlite3.connect(settings.app_db_path)
     conn.row_factory = sqlite3.Row
@@ -12,6 +13,7 @@ def get_db():
 
 
 def init_db():
+    """Create required tables if they do not exist."""
     # Startup schema creation for local/dev deployment.
     with get_db() as conn:
         conn.execute(

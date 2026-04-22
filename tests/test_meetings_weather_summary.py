@@ -8,11 +8,13 @@ from app import main as main_module
 
 @pytest.fixture
 def client():
+    """FastAPI test client fixture for meetings-summary endpoint tests."""
     with TestClient(main_module.app) as c:
         yield c
 
 
 def test_meetings_weather_summary_with_vapi_wrapper(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    """VAPI wrapper payload should return tool result + structured `data` payload."""
     monkeypatch.setattr(
         main_module,
         "get_current_user_or_401",
@@ -61,6 +63,7 @@ def test_meetings_weather_summary_with_vapi_wrapper(monkeypatch: pytest.MonkeyPa
 
 
 def test_meetings_weather_summary_no_meetings(monkeypatch: pytest.MonkeyPatch, client: TestClient) -> None:
+    """No-meetings scenario should return zero counts and plain summary text."""
     monkeypatch.setattr(
         main_module,
         "get_current_user_or_401",
@@ -96,6 +99,7 @@ def test_meetings_weather_summary_in_person_missing_city_is_blocked(
     monkeypatch: pytest.MonkeyPatch,
     client: TestClient,
 ) -> None:
+    """Blocked in-person scenario should propagate blocked risk in response body."""
     monkeypatch.setattr(
         main_module,
         "get_current_user_or_401",
