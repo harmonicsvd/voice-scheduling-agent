@@ -1,3 +1,5 @@
+"""Endpoint tests for `/meetings-weather-summary` response contract."""
+
 from fastapi.testclient import TestClient
 import pytest
 

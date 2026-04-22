@@ -31,6 +31,8 @@ from datetime import datetime, timedelta
 # - json: parse JSON strings from env variables.
 # - re: regular expressions for duration parsing.
 import os
+"""Reference version of main backend with extra inline teaching comments."""
+
 import json
 import re
 

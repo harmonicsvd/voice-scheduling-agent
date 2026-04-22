@@ -1,3 +1,5 @@
+"""Endpoint tests for `/create-event` tool webhook behavior."""
+
 import sqlite3
 from pathlib import Path
 

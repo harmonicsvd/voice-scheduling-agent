@@ -1,3 +1,5 @@
+"""Google API client factories (Calendar service + OAuth config)."""
+
 import json
 from authlib.integrations.starlette_client import OAuth
 from google.oauth2 import service_account
@@ -9,6 +11,10 @@ SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 
 def get_calendar_service():
+    """
+    Build Google Calendar service client.
+    Supports JSON-in-env or file-based service account credentials.
+    """
     if settings.service_account_json:
         service_account_info = json.loads(settings.service_account_json)
         credentials = service_account.Credentials.from_service_account_info(
@@ -25,6 +31,7 @@ def get_calendar_service():
 
 
 def build_oauth() -> OAuth:
+    """Configure Google OAuth client used by `/auth/google/*` routes."""
     oauth = OAuth()
     oauth.register(
         name="google",
