@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aster | Setup</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-cream: #f7f4ee;
+        --text-main: #1f2a2a;
+        --text-soft: #61706f;
+        --line: rgba(31, 42, 42, 0.1);
+        --card: rgba(255, 252, 247, 0.78);
+        --teal: #0f766e;
+        --teal-deep: #0b5d57;
+        --teal-soft: rgba(15, 118, 110, 0.12);
+        --shadow: 0 24px 80px rgba(29, 43, 42, 0.12);
+        --danger: #b45309;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Manrope", sans-serif;
+        color: var(--text-main);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.1), transparent 34%),
+          radial-gradient(circle at bottom right, rgba(205, 185, 150, 0.18), transparent 30%),
+          linear-gradient(135deg, var(--bg-cream) 0%, #f3efe8 48%, #f8f5f0 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+        background-size: 56px 56px;
+        opacity: 0.18;
+        pointer-events: none;
+      }
+
+      .page {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        padding: 24px;
+      }
+            .shell {
+        max-width: 1080px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(380px, 460px);
+        gap: 36px;
+        align-items: center;
+        min-height: calc(100vh - 110px);
+      }
+
+
+
+      .brandbar {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-bottom: 20px;
+      }
+
+      .brand-name {
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+      }
+
+      .brand-tag {
+        font-size: 0.78rem;
+        color: var(--text-soft);
+      }
+
+      .story {
+        padding-top: 18px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.5);
+        color: var(--text-soft);
+        font-size: 0.84rem;
+        margin-bottom: 20px;
+      }
+
+      .hero-title {
+        margin: 0;
+        max-width: 11ch;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: clamp(3rem, 6vw, 5.2rem);
+        line-height: 0.96;
+        letter-spacing: -0.055em;
+      }
+
+      .hero-copy {
+        max-width: 540px;
+        margin: 22px 0 26px;
+        font-size: 1.02rem;
+        line-height: 1.75;
+        color: var(--text-soft);
+      }
+
+      .benefits {
+        display: grid;
+        gap: 14px;
+        max-width: 540px;
+      }
+
+      .benefit {
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.48);
+      }
+
+      .benefit strong {
+        display: block;
+        margin-bottom: 8px;
+        font-family: "Space Grotesk", sans-serif;
+        letter-spacing: -0.02em;
+      }
+
+      .benefit p {
+        margin: 0;
+        color: var(--text-soft);
+        line-height: 1.7;
+        font-size: 0.95rem;
+      }
+      .card {
+        width: 100%;
+        padding: 30px;
+        border: 1px solid rgba(31, 42, 42, 0.09);
+        border-radius: 28px;
+        background: var(--card);
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow);
+        align-self: center;
+      }
+
+
+      .progress-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .progress-copy {
+        font-size: 0.9rem;
+        color: var(--text-soft);
+      }
+
+      .progress-bar {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(31, 42, 42, 0.08);
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        width: 33.333%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(135deg, var(--teal) 0%, var(--teal-deep) 100%);
+        transition: width 220ms ease;
+      }
+
+      .step-tag {
+        display: inline-block;
+        margin-bottom: 12px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--teal);
+      }
+
+      .step-title {
+        margin: 0 0 10px;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 2rem;
+        letter-spacing: -0.04em;
+      }
+
+      .step-copy {
+        margin: 0 0 22px;
+        color: var(--text-soft);
+        line-height: 1.7;
+      }
+
+      .step-panel {
+        display: none;
+      }
+
+      .step-panel.active {
+        display: block;
+      }
+
+      .field-group {
+        display: grid;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .field {
+        display: grid;
+        gap: 8px;
+      }
+
+      label {
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(31, 42, 42, 0.12);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--text-main);
+        font: inherit;
+      }
+
+      input:focus,
+      select:focus {
+        outline: 2px solid rgba(15, 118, 110, 0.15);
+        border-color: rgba(15, 118, 110, 0.3);
+      }
+
+      .choice-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .choice-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .choice-option {
+        position: relative;
+      }
+
+      .choice-option input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .choice-option span {
+        display: block;
+        padding: 13px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(31, 42, 42, 0.12);
+        background: rgba(255, 255, 255, 0.66);
+        text-align: center;
+        font-size: 0.94rem;
+        transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
+      }
+
+      .choice-option input:checked + span {
+        border-color: rgba(15, 118, 110, 0.34);
+        background: rgba(15, 118, 110, 0.12);
+        color: var(--teal-deep);
+      }
+
+      .ppe-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(31, 42, 42, 0.1);
+        background: rgba(255, 255, 255, 0.48);
+      }
+
+      .ppe-copy strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .ppe-copy p {
+        margin: 0;
+        color: var(--text-soft);
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+
+      .switch {
+        position: relative;
+        width: 56px;
+        height: 32px;
+      }
+
+      .switch input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .switch-track {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: rgba(31, 42, 42, 0.14);
+        transition: background 180ms ease;
+      }
+
+      .switch-thumb {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: white;
+        box-shadow: 0 4px 10px rgba(31, 42, 42, 0.14);
+        transition: transform 180ms ease;
+      }
+
+      .switch input:checked ~ .switch-track {
+        background: rgba(15, 118, 110, 0.28);
+      }
+
+           .switch input:checked ~ .switch-thumb {
+        transform: translateX(22px);
+      }
+
+      .coming-next {
+        margin-top: 16px;
+        padding: 16px 18px;
+        border-radius: 18px;
+        border: 1px dashed rgba(31, 42, 42, 0.16);
+        color: var(--text-soft);
+        background: rgba(255, 255, 255, 0.34);
+        font-size: 0.92rem;
+        line-height: 1.65;
+      }
+
+      .error {
+        display: none;
+        margin: 4px 0 0;
+        color: var(--danger);
+        font-size: 0.9rem;
+      }
+
+      .error.visible {
+        display: block;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .btn {
+        border: 0;
+        border-radius: 18px;
+        padding: 14px 18px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.62);
+        color: var(--text-main);
+        border: 1px solid rgba(31, 42, 42, 0.08);
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--teal) 0%, var(--teal-deep) 100%);
+        color: white;
+        box-shadow: 0 18px 38px rgba(15, 118, 110, 0.2);
+      }
+
+      .btn[disabled] {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .status-note {
+        margin-top: 16px;
+        font-size: 0.9rem;
+        color: var(--text-soft);
+      }
+
+      @media (max-width: 980px) {
+        .shell {
+          grid-template-columns: 1fr;
+          gap: 28px;
+        }
+
+        .story {
+          max-width: 100%;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page { padding: 16px; }
+        .card { padding: 22px; border-radius: 22px; }
+        .hero-title { font-size: 2.55rem; }
+        .choice-row { grid-template-columns: 1fr; }
+        .actions { flex-direction: column-reverse; }
+        .btn { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="shell">
+        <div class="story">
+          <div class="brandbar">
+            <div class="brand-name">Aster</div>
+            <div class="brand-tag">Meeting + Weather Copilot</div>
+          </div>
+
+          <div class="eyebrow">Finish your setup</div>
+          <h1 class="hero-title">Set up your personal assistant for work.</h1>
+<p class="hero-copy">
+  Aster learns from your role, routines, and preferences so it can
+  support your meetings, preparation, and daily workflow in a more
+  personal way.
+</p>
+
+
+          <div class="benefits">
+            <div class="benefit">
+              <strong>Role-aware guidance</strong>
+              <p>
+                Aster uses your role and setup preferences to personalize
+                meeting preparation and weather-aware suggestions.
+              </p>
+            </div>
+
+            <div class="benefit">
+              <strong>Built for your daily rhythm</strong>
+              <p>
+                Your city, timezone, and commute style help Aster deliver more
+                practical support when timing and travel matter.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="progress-row">
+            <div class="progress-copy" id="progress-copy">Step 1 of 3</div>
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          </div>
+
+          <form id="setup-form">
+            <section class="step-panel active" data-step="1">
+              <div class="step-tag">Work</div>
+              <h2 class="step-title">Tell Aster about your work</h2>
+              <p class="step-copy">
+                Your role helps Aster understand what matters in your meetings
+                and day-to-day preparation.
+              </p>
+
+              <div class="field-group">
+                <div class="field">
+                  <label for="role">Your role</label>
+                  <select id="role" name="role" required>
+                    <option value="">Select your role</option>
+                    <option>Architect</option>
+                    <option>Contractor</option>
+                    <option>Project Manager</option>
+                    <option>Site Supervisor</option>
+                    <option>Sales Manager</option>
+                    <option>Event Coordinator</option>
+                    <option>Operations Lead</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="coming-next">
+                Work context and document sources will be added next, so Aster
+                can understand more about your projects and materials over time.
+              </div>
+            </section>
+
+            <section class="step-panel" data-step="2">
+              <div class="step-tag">Context</div>
+              <h2 class="step-title">Set your daily context</h2>
+              <p class="step-copy">
+                These details help Aster support travel, timing, and
+                weather-sensitive meetings more practically.
+              </p>
+
+              <div class="field-group">
+                <div class="field">
+                  <label for="default_city">Default city</label>
+                  <input id="default_city" name="default_city" type="text" placeholder="Berlin" required />
+                </div>
+
+                <div class="field">
+                  <label for="timezone">Timezone</label>
+                  <input id="timezone" name="timezone" type="text" placeholder="Europe/Berlin" required />
+                </div>
+
+                <div class="field">
+                  <label for="commute_mode">How do you usually commute?</label>
+                  <select id="commute_mode" name="commute_mode" required>
+                    <option value="">Choose a commute style</option>
+                    <option>Car</option>
+                    <option>Public transport</option>
+                    <option>Walk</option>
+                    <option>Bike</option>
+                    <option>Mixed</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section class="step-panel" data-step="3">
+              <div class="step-tag">Preferences</div>
+              <h2 class="step-title">Set your preferences</h2>
+              <p class="step-copy">
+                Aster uses these preferences to shape how cautious and practical
+                its guidance should be.
+              </p>
+
+              <div class="field-group">
+                <div class="field">
+                  <label>Risk tolerance</label>
+                  <div class="choice-row">
+                    <label class="choice-option">
+                      <input type="radio" name="risk_tolerance" value="Low" required />
+                      <span>Low</span>
+                    </label>
+                    <label class="choice-option">
+                      <input type="radio" name="risk_tolerance" value="Medium" required />
+                      <span>Medium</span>
+                    </label>
+                    <label class="choice-option">
+                      <input type="radio" name="risk_tolerance" value="High" required />
+                      <span>High</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="ppe-row">
+                  <div class="ppe-copy">
+                    <strong>PPE requirements</strong>
+                    <p>Turn this on if your work often involves protective equipment.</p>
+                  </div>
+                  <label class="switch" aria-label="PPE required">
+                    <input id="ppe_required" name="ppe_required" type="checkbox" />
+                    <span class="switch-track"></span>
+                    <span class="switch-thumb"></span>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <p class="error" id="form-error"></p>
+
+            <div class="actions">
+              <button class="btn btn-secondary" id="back-btn" type="button">Back</button>
+              <button class="btn btn-primary" id="next-btn" type="button">Continue</button>
+            </div>
+
+            <div class="status-note">
+              You can update these details later in your profile.
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const steps = Array.from(document.querySelectorAll(".step-panel"));
+      const progressCopy = document.getElementById("progress-copy");
+      const progressFill = document.getElementById("progress-fill");
+      const backBtn = document.getElementById("back-btn");
+      const nextBtn = document.getElementById("next-btn");
+      const form = document.getElementById("setup-form");
+      const formError = document.getElementById("form-error");
+      const timezoneInput = document.getElementById("timezone");
+
+      let currentStep = 1;
+      let saving = false;
+
+      function showError(message) {
+        formError.textContent = message;
+        formError.classList.add("visible");
+      }
+
+      function clearError() {
+        formError.textContent = "";
+        formError.classList.remove("visible");
+      }
+
+      function updateStepUI() {
+        steps.forEach((step) => {
+          step.classList.toggle("active", Number(step.dataset.step) === currentStep);
+        });
+
+        progressCopy.textContent = `Step ${currentStep} of 3`;
+        progressFill.style.width = `${currentStep * 33.333}%`;
+        backBtn.style.visibility = currentStep === 1 ? "hidden" : "visible";
+        nextBtn.textContent = currentStep === 3 ? "Finish setup" : "Continue";
+      }
+
+      function validateCurrentStep() {
+        clearError();
+
+        if (currentStep === 1) {
+          if (!form.role.value.trim()) {
+            showError("Please choose your role before continuing.");
+            return false;
+          }
+        }
+
+        if (currentStep === 2) {
+          if (!form.default_city.value.trim()) {
+            showError("Please add your default city.");
+            return false;
+          }
+          if (!form.timezone.value.trim()) {
+            showError("Please add your timezone.");
+            return false;
+          }
+          if (!form.commute_mode.value.trim()) {
+            showError("Please choose how you usually commute.");
+            return false;
+          }
+        }
+
+        if (currentStep === 3) {
+          const selectedRisk = form.querySelector('input[name="risk_tolerance"]:checked');
+          if (!selectedRisk) {
+            showError("Please select your risk tolerance.");
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      async function loadProfile() {
+        try {
+          const response = await fetch("/profile", { credentials: "same-origin" });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const profile = payload.profile || {};
+
+          if (payload.is_setup_complete) {
+            window.location.href = "/assistant";
+            return;
+          }
+
+          if (!timezoneInput.value && Intl.DateTimeFormat().resolvedOptions().timeZone) {
+            timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          }
+
+          if (profile.role) form.role.value = profile.role;
+          if (profile.default_city) form.default_city.value = profile.default_city;
+          if (profile.timezone) form.timezone.value = profile.timezone;
+          if (profile.commute_mode) form.commute_mode.value = profile.commute_mode;
+          if (profile.risk_tolerance) {
+            const radio = form.querySelector(`input[name="risk_tolerance"][value="${profile.risk_tolerance}"]`);
+            if (radio) radio.checked = true;
+          }
+          if (typeof profile.ppe_required !== "undefined") {
+            form.ppe_required.checked = Boolean(profile.ppe_required);
+          }
+        } catch (_err) {
+          if (!timezoneInput.value && Intl.DateTimeFormat().resolvedOptions().timeZone) {
+            timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          }
+        }
+      }
+
+      async function saveProfile() {
+        if (saving) return;
+        saving = true;
+        clearError();
+        nextBtn.disabled = true;
+        backBtn.disabled = true;
+        nextBtn.textContent = "Saving...";
+
+        const selectedRisk = form.querySelector('input[name="risk_tolerance"]:checked');
+
+        const payload = {
+          role: form.role.value.trim(),
+          default_city: form.default_city.value.trim(),
+          timezone: form.timezone.value.trim(),
+          commute_mode: form.commute_mode.value.trim(),
+          risk_tolerance: selectedRisk ? selectedRisk.value : "",
+          ppe_required: form.ppe_required.checked,
+        };
+
+        try {
+          const response = await fetch("/profile", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            const errorPayload = await response.json().catch(() => ({}));
+            throw new Error(errorPayload.error || "Could not save your setup.");
+          }
+
+          window.location.href = "/assistant";
+        } catch (err) {
+          showError(err.message || "Could not save your setup.");
+          nextBtn.textContent = "Finish setup";
+          nextBtn.disabled = false;
+          backBtn.disabled = false;
+          saving = false;
+        }
+      }
+
+      backBtn.addEventListener("click", () => {
+        if (saving || currentStep === 1) return;
+        currentStep -= 1;
+        updateStepUI();
+        clearError();
+      });
+
+      nextBtn.addEventListener("click", async () => {
+        if (!validateCurrentStep()) return;
+
+        if (currentStep < 3) {
+          currentStep += 1;
+          updateStepUI();
+          return;
+        }
+
+        await saveProfile();
+      });
+
+      updateStepUI();
+      loadProfile();
+    </script>
+  </body>
+</html>

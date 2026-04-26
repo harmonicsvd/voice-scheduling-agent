@@ -67,6 +67,7 @@ def test_context(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     _init_db(db_path)
 
     def _get_db():
+        """Return connections to the temporary SQLite DB used by this test."""
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -84,19 +85,26 @@ def test_context(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     created_payloads: list[dict] = []
 
     class _FakeInsertCall:
+        """Capture inserted event payloads instead of calling Google Calendar."""
         def __init__(self, payload: dict):
+            """Store the event payload so assertions can inspect it later."""
             self._payload = payload
 
         def execute(self):
+            """Pretend Google accepted the event and expose the captured payload."""
             created_payloads.append(self._payload)
             return {"htmlLink": "https://example.com/event"}
 
     class _FakeEventsAPI:
+        """Tiny stand-in for `service.events()` from the Google client."""
         def insert(self, calendarId: str, body: dict):
+            """Return a fake insert call that records calendar/body arguments."""
             return _FakeInsertCall({"calendarId": calendarId, "body": body})
 
     class _FakeCalendarService:
+        """Minimal service object matching the part of the Google API we use."""
         def events(self):
+            """Expose the fake events API used by create-event tests."""
             return _FakeEventsAPI()
 
     monkeypatch.setattr(main_module, "get_calendar_service", lambda: _FakeCalendarService())
@@ -213,6 +221,7 @@ def test_create_event_requires_user_sub_for_server_calls(
     _init_db(db_path)
 
     def _get_db():
+        """Point this test case at its own isolated temporary database."""
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -226,15 +235,21 @@ def test_create_event_requires_user_sub_for_server_calls(
     monkeypatch.setattr(main_module, "require_internal_api_key", lambda _key: None)
 
     class _FakeInsertCall:
+        """Fake `.execute()` target for the Google Calendar insert chain."""
         def execute(self):
+            """Return a success-like payload without hitting external services."""
             return {"htmlLink": "https://example.com/event"}
 
     class _FakeEventsAPI:
+        """Tiny replacement for the Google Calendar `events()` resource."""
         def insert(self, calendarId: str, body: dict):
+            """Return a fake insert call object matching the production chain."""
             return _FakeInsertCall()
 
     class _FakeCalendarService:
+        """Minimal calendar service exposing only the `events()` method."""
         def events(self):
+            """Return the fake events API used by this isolated test."""
             return _FakeEventsAPI()
 
     monkeypatch.setattr(main_module, "get_calendar_service", lambda: _FakeCalendarService())
@@ -261,6 +276,7 @@ def test_create_event_extracts_user_sub_from_assistant_overrides(
     _init_db(db_path)
 
     def _get_db():
+        """Return a temp DB connection for the assistantOverrides test case."""
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -276,19 +292,26 @@ def test_create_event_extracts_user_sub_from_assistant_overrides(
     created_payloads: list[dict] = []
 
     class _FakeInsertCall:
+        """Capture payloads so the test can verify embedded metadata fields."""
         def __init__(self, payload: dict):
+            """Remember insert arguments for later assertions."""
             self._payload = payload
 
         def execute(self):
+            """Store payload and mimic a successful Google Calendar response."""
             created_payloads.append(self._payload)
             return {"htmlLink": "https://example.com/event"}
 
     class _FakeEventsAPI:
+        """Fake events resource that returns the payload-capturing insert call."""
         def insert(self, calendarId: str, body: dict):
+            """Bundle calendar/body args into the fake insert call object."""
             return _FakeInsertCall({"calendarId": calendarId, "body": body})
 
     class _FakeCalendarService:
+        """Minimal calendar service matching the production call surface."""
         def events(self):
+            """Return the fake events resource used by this test."""
             return _FakeEventsAPI()
 
     monkeypatch.setattr(main_module, "get_calendar_service", lambda: _FakeCalendarService())

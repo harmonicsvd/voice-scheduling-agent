@@ -60,13 +60,18 @@ oauth = build_oauth()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 LOGIN_HTML = BASE_DIR / "login.html"
+SETUP_HTML = BASE_DIR / "setup.html"
 VOICE_HTML = BASE_DIR / "index.html"
 
 
 class ProfileUpdate(BaseModel):
     """Validated payload for updating user profile preferences."""
+    role: str = Field(min_length=2, max_length=80)
     default_city: str = Field(min_length=2, max_length=80)
     timezone: str = Field(default="Europe/Berlin", min_length=3, max_length=80)
+    commute_mode: str = Field(min_length=2, max_length=40)
+    risk_tolerance: str = Field(min_length=2, max_length=20)
+    ppe_required: bool = False
 
 
 class CreateEventArguments(BaseModel):
@@ -151,6 +156,7 @@ def _extract_user_sub(raw_payload: dict, explicit_sub: str | None) -> str | None
 
     # Priority 3: deep recursive search as final fallback for payload variants.
     def _walk(value: Any) -> str | None:
+        """Recursively search nested dict/list payloads for any `user_sub` field."""
         if isinstance(value, dict):
             maybe = value.get("user_sub")
             if isinstance(maybe, str) and maybe.strip():
@@ -169,7 +175,7 @@ def _extract_user_sub(raw_payload: dict, explicit_sub: str | None) -> str | None
     return _walk(raw_payload)
 
 
-def _fetch_meetings_summary_from_weather_agent(
+async def _fetch_meetings_summary_from_weather_agent(
     *,
     user_sub: str,
     target_date: str | None,
@@ -194,8 +200,8 @@ def _fetch_meetings_summary_from_weather_agent(
     if target_date:
         params["date"] = target_date
 
-    with httpx.Client(timeout=settings.weather_agent_timeout_seconds) as client:
-        response = client.get(
+    async with httpx.AsyncClient(timeout=settings.weather_agent_timeout_seconds) as client:
+        response = await client.get(
             f"{settings.weather_agent_base_url}/internal/meeting-weather-summary",
             params=params,
             headers={"X-Internal-API-Key": settings.weather_agent_internal_api_key},
@@ -224,7 +230,23 @@ async def assistant_page(request: Request):
     if not user.get("sub"):
         request.session.clear()
         return RedirectResponse(url="/login", status_code=302)
+    if not _is_profile_complete(_get_profile_row(user["sub"])):
+        return RedirectResponse(url="/setup", status_code=302)
     return FileResponse(VOICE_HTML)
+
+
+@app.get("/setup")
+async def setup_page(request: Request):
+    """Serve onboarding UI for authenticated users who still need profile setup."""
+    user, _ = get_current_user_or_401(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    if not user.get("sub"):
+        request.session.clear()
+        return RedirectResponse(url="/login", status_code=302)
+    if _is_profile_complete(_get_profile_row(user["sub"])):
+        return RedirectResponse(url="/assistant", status_code=302)
+    return FileResponse(SETUP_HTML)
 
 
 @app.get("/profile")
@@ -234,20 +256,16 @@ async def get_profile(request: Request):
     if error:
         return error
 
-    with get_db() as conn:
-        row = conn.execute(
-            """
-            SELECT sub, email, default_city, timezone, updated_at
-            FROM user_profiles
-            WHERE sub = ?
-            """,
-            (user["sub"],),
-        ).fetchone()
+    row = _get_profile_row(user["sub"])
 
     if not row:
-        return {"has_profile": False, "profile": None}
+        return {"has_profile": False, "is_setup_complete": False, "profile": None}
 
-    return {"has_profile": True, "profile": dict(row)}
+    return {
+        "has_profile": True,
+        "is_setup_complete": _is_profile_complete(row),
+        "profile": dict(row),
+    }
 
 @app.put("/profile")
 async def put_profile(payload: ProfileUpdate, request: Request):
@@ -261,12 +279,19 @@ async def put_profile(payload: ProfileUpdate, request: Request):
     with get_db() as conn:
         conn.execute(
             """
-            INSERT INTO user_profiles (sub, email, default_city, timezone, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO user_profiles (
+                sub, email, default_city, timezone, role, commute_mode,
+                ppe_required, risk_tolerance, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(sub) DO UPDATE SET
                 email = excluded.email,
                 default_city = excluded.default_city,
                 timezone = excluded.timezone,
+                role = excluded.role,
+                commute_mode = excluded.commute_mode,
+                ppe_required = excluded.ppe_required,
+                risk_tolerance = excluded.risk_tolerance,
                 updated_at = excluded.updated_at
             """,
             (
@@ -274,6 +299,10 @@ async def put_profile(payload: ProfileUpdate, request: Request):
                 user.get("email", ""),
                 payload.default_city.strip(),
                 payload.timezone.strip(),
+                payload.role.strip(),
+                payload.commute_mode.strip(),
+                payload.ppe_required,
+                payload.risk_tolerance.strip(),
                 updated_at,
             ),
         )
@@ -730,7 +759,7 @@ async def meetings_weather_summary(
                 status_code=400,
             )
 
-        summary = _fetch_meetings_summary_from_weather_agent(
+        summary = await _fetch_meetings_summary_from_weather_agent(
             user_sub=caller_sub,
             target_date=arguments.date,
             timezone_name=arguments.timezone,
@@ -770,7 +799,7 @@ async def meetings_weather_summary_internal(
         return err
 
     try:
-        return _fetch_meetings_summary_from_weather_agent(
+        return await _fetch_meetings_summary_from_weather_agent(
             user_sub=user_sub,
             target_date=date,
             timezone_name=tz,
@@ -809,7 +838,8 @@ async def auth_google_callback(request: Request):
     }
 
     user_sub = request.session["user"].get("sub", "")
-    return RedirectResponse(url=f"/assistant?user_sub={user_sub}", status_code=302)
+    destination = "/assistant" if _is_profile_complete(_get_profile_row(user_sub)) else "/setup"
+    return RedirectResponse(url=f"{destination}?user_sub={user_sub}", status_code=302)
 
 
 @app.get("/auth/me")
@@ -834,6 +864,35 @@ def get_current_user_or_401(request: Request):
     if not user:
         return None, JSONResponse({"error": "authentication required"}, status_code=401)
     return user, None
+
+
+def _get_profile_row(sub: str):
+    """Load one profile row used by page routing and profile APIs."""
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT sub, email, default_city, timezone, role, commute_mode, ppe_required, risk_tolerance, updated_at
+            FROM user_profiles
+            WHERE sub = ?
+            """,
+            (sub,),
+        ).fetchone()
+
+
+def _is_profile_complete(row) -> bool:
+    """Treat setup as complete only when all onboarding-required fields are present."""
+    if not row:
+        return False
+
+    required_fields = [
+        row["role"],
+        row["default_city"],
+        row["timezone"],
+        row["commute_mode"],
+        row["risk_tolerance"],
+    ]
+    return all(isinstance(value, str) and value.strip() for value in required_fields)
+
 
 def _lookup_profile_city(sub: str | None) -> str | None:
     """Read default city from local profile DB for fallback event city logic."""

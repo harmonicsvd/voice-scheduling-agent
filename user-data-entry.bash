@@ -5,7 +5,7 @@ set -euo pipefail
 BASE="http://127.0.0.1:8000"   # or your Render URL
 KEY="2zAeiOr_V0dCuEt9oOC_9AEiM6q6OBcSCdtSSf-z6bjnNKulspvasyVe0_PyHPrf"
 SUB="104659023322141767006"
-DATE="2026-04-23"
+DATE="2026-04-26"
 
 post_event () {
   local id="$1" name="$2" time="$3" title="$4" duration="$5" mode="$6" city="$7" location="$8"
