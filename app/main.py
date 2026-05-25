@@ -3,7 +3,8 @@
 import hmac
 import json
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Query, Header
+import logging
+from fastapi import FastAPI, Request, Query, Header, logger
 from pathlib import Path
 from fastapi.responses import JSONResponse, Response, RedirectResponse, FileResponse
 
@@ -17,7 +18,7 @@ from app.db import init_db, get_db
 
 
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 import httpx
 
 import re
@@ -34,7 +35,7 @@ async def lifespan(app: FastAPI):
     # optional cleanup when server stops
 
 app = FastAPI(lifespan=lifespan)
-
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,
@@ -199,21 +200,35 @@ async def _fetch_meetings_summary_from_weather_agent(
     }
     if target_date:
         params["date"] = target_date
+    started = time.perf_counter()
+    status_code: int | None = None
+    try:
+        async with httpx.AsyncClient(timeout=settings.weather_agent_timeout_seconds) as client:
+            response = await client.get(
+                f"{settings.weather_agent_base_url}/internal/meeting-weather-summary",
+                params=params,
+                headers={"X-Internal-API-Key": settings.weather_agent_internal_api_key},
+            )
+            status_code = response.status_code
+            response.raise_for_status()
+            payload = response.json()
 
-    async with httpx.AsyncClient(timeout=settings.weather_agent_timeout_seconds) as client:
-        response = await client.get(
-            f"{settings.weather_agent_base_url}/internal/meeting-weather-summary",
-            params=params,
-            headers={"X-Internal-API-Key": settings.weather_agent_internal_api_key},
+        if not isinstance(payload, dict):
+            raise RuntimeError("Weather agent returned invalid summary payload.")
+        if "summary_text" not in payload:
+            raise RuntimeError("Weather agent response missing summary_text.")
+        return payload
+    finally:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        logger.info(
+            "weather_delegate_done user_sub=%s date=%s tz=%s status=%s elapsed_ms=%.1f timeout_s=%.1f",
+            user_sub,
+            target_date,
+            timezone_name,
+            status_code,
+            elapsed_ms,
+            settings.weather_agent_timeout_seconds,
         )
-        response.raise_for_status()
-        payload = response.json()
-
-    if not isinstance(payload, dict):
-        raise RuntimeError("Weather agent returned invalid summary payload.")
-    if "summary_text" not in payload:
-        raise RuntimeError("Weather agent response missing summary_text.")
-    return payload
 
 
 @app.get("/login")
@@ -715,7 +730,7 @@ async def meetings_weather_summary(
     Delegates summary generation to weather-agent internal API.
     """
     raw_payload = await request.json()
-
+    req_started = time.perf_counter()
     try:
         message = raw_payload.get("message") or {}
         tool_calls = message.get("toolCalls") or message.get("tool_calls") or []
@@ -779,11 +794,15 @@ async def meetings_weather_summary(
             )
 
         return JSONResponse(content=summary)
+    
 
     except ValueError as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+    finally:
+         total_ms = (time.perf_counter() - req_started) * 1000
+         logger.info("meetings_weather_summary_done elapsed_ms=%.1f", total_ms)
 
 
 @app.get("/internal/meetings-weather-summary")
