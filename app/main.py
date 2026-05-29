@@ -4,7 +4,7 @@ import hmac
 import json
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI, Request, Query, Header, logger
+from fastapi import FastAPI, Request, Query, Header
 from pathlib import Path
 from fastapi.responses import JSONResponse, Response, RedirectResponse, FileResponse
 
@@ -14,7 +14,7 @@ from app.google_clients import get_calendar_service, build_oauth
 from pydantic import BaseModel, Field, ValidationError
 from typing import Literal, Any
 
-from app.db import init_db, get_db
+from app.db import init_db, get_db, db_execute
 
 
 
@@ -293,13 +293,14 @@ async def put_profile(payload: ProfileUpdate, request: Request):
     updated_at = datetime.now(timezone.utc).isoformat()
 
     with get_db() as conn:
-        conn.execute(
+        db_execute(
+            conn,
             """
             INSERT INTO user_profiles (
                 sub, email, default_city, timezone, role, commute_mode,
                 ppe_required, risk_tolerance, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT(sub) DO UPDATE SET
                 email = excluded.email,
                 default_city = excluded.default_city,
@@ -322,7 +323,6 @@ async def put_profile(payload: ProfileUpdate, request: Request):
                 updated_at,
             ),
         )
-        conn.commit()
 
     return {"ok": True}
 
@@ -345,11 +345,12 @@ async def get_internal_profile(
         return err
 
     with get_db() as conn:
-        row = conn.execute(
+        row = db_execute(
+            conn,
             """
             SELECT sub, email, default_city, timezone, role, commute_mode, ppe_required, risk_tolerance, updated_at
             FROM user_profiles
-            WHERE sub = ?
+            WHERE sub = %s
             """,
             (sub,),
         ).fetchone()
@@ -889,11 +890,12 @@ def get_current_user_or_401(request: Request):
 def _get_profile_row(sub: str):
     """Load one profile row used by page routing and profile APIs."""
     with get_db() as conn:
-        return conn.execute(
+        return db_execute(
+            conn,
             """
             SELECT sub, email, default_city, timezone, role, commute_mode, ppe_required, risk_tolerance, updated_at
             FROM user_profiles
-            WHERE sub = ?
+            WHERE sub = %s
             """,
             (sub,),
         ).fetchone()
@@ -920,10 +922,10 @@ def _lookup_profile_city(sub: str | None) -> str | None:
         return None
 
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT default_city FROM user_profiles WHERE sub = ?",
+        row = db_execute(
+            conn,
+            "SELECT default_city FROM user_profiles WHERE sub = %s",
             (sub,),
         ).fetchone()
-
     city = (row["default_city"] or "").strip() if row else ""
     return city or None
