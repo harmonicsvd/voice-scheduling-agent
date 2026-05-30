@@ -13,7 +13,7 @@ except Exception:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 USING_POSTGRES = bool(DATABASE_URL)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 
 @contextmanager

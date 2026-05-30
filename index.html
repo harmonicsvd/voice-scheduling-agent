@@ -3,186 +3,263 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Voice Scheduling Agent</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <title>Aster | Voice Assistant</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
   <style>
+    :root {
+      --bg-cream: #f7f4ee;
+      --bg-sand: #ece4d8;
+      --text-main: #1f2a2a;
+      --text-soft: #5f6c6b;
+      --line: rgba(31, 42, 42, 0.1);
+      --card: rgba(255, 252, 247, 0.76);
+      --teal: #0f766e;
+      --teal-deep: #0b5d57;
+      --teal-soft: rgba(15, 118, 110, 0.14);
+      --shadow: 0 24px 80px rgba(29, 43, 42, 0.12);
+      --danger: #b45309;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'DM Sans', sans-serif;
+      font-family: "Manrope", sans-serif;
       min-height: 100vh;
-      background: linear-gradient(135deg, #f8f6ff 0%, #eff6ff 50%, #f0fdf4 100%);
+      color: var(--text-main);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(205, 185, 150, 0.2), transparent 30%),
+        linear-gradient(135deg, var(--bg-cream) 0%, #f3efe8 48%, #f8f5f0 100%);
       position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      overflow-x: hidden;
     }
 
-    /* Hide VAPI default button completely */
-#vapi-support-btn,
-[id^="vapi"],
-.vapi-btn,
-div[style*="position: fixed"][style*="bottom"] {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
-    /* ── Calendar background ── */
-    .cal-bg {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 0;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .cal-header-row {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      border-bottom: 1px solid rgba(5,150,105,0.12);
-    }
-
-    .cal-day-label {
-      text-align: center;
-      font-size: 10px;
-      font-weight: 600;
-      color: rgba(5,150,105,0.22);
-      padding: 10px 0;
-      letter-spacing: 0.05em;
-    }
-
-    .cal-cells {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      flex: 1;
-    }
-
-    .cal-cell {
-      border-right: 0.5px solid rgba(5,150,105,0.08);
-      border-bottom: 0.5px solid rgba(5,150,105,0.08);
-      padding: 6px 8px;
-      min-height: 80px;
-      transition: background 0.4s ease;
-    }
-
-    .cal-num {
-      font-size: 12px;
-      font-weight: 500;
-      color: rgba(5,150,105,0.18);
-      transition: all 0.4s ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-    }
-
-    .cal-num.today {
-      color: rgba(5,150,105,0.45);
-      font-weight: 600;
-    }
-
-    .cal-num.highlighted {
-      background: rgba(5,150,105,0.2);
-      color: #059669 !important;
-      font-weight: 700;
-    }
-
-    .cal-cell.highlighted {
-      background: rgba(5,150,105,0.05);
-    }
-
-    .cal-evt {
-      font-size: 8px;
-      background: rgba(5,150,105,0.08);
-      color: rgba(5,150,105,0.3);
-      border-radius: 3px;
-      padding: 2px 4px;
-      margin-top: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .cal-evt.new {
-      background: rgba(5,150,105,0.2);
-      color: #059669;
-    }
-
-    /* ── Blobs ── */
-    .blobs {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 1;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+      background-size: 56px 56px;
+      opacity: 0.18;
       pointer-events: none;
     }
 
-    /* ── Main content ── */
-    .content {
+    /* Hide VAPI default button */
+    #vapi-support-btn,
+    [id^="vapi"],
+    .vapi-btn,
+    div[style*="position: fixed"][style*="bottom"] {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    .page {
       position: relative;
       z-index: 2;
+      min-height: 100vh;
+      padding: 24px 32px;
+    }
+
+    .brandbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .brand-copy {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 3rem 1.5rem 2rem;
-      min-height: 100vh;
+      gap: 2px;
     }
 
-    .icon-wrap {
-      width: 64px;
-      height: 64px;
-      background: rgba(255,255,255,0.95);
-      border: 0.5px solid #d1fae5;
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1.2rem;
-      box-shadow: 0 2px 12px rgba(16,185,129,0.12);
+    .brand-name {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.38rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
     }
 
-    h1 {
-      font-size: 24px;
-      font-weight: 600;
-      color: #1e1b4b;
-      margin-bottom: 6px;
+    .brand-tag {
+      font-size: 0.78rem;
+      color: var(--text-soft);
     }
 
-    .subtitle {
-      font-size: 13px;
-      color: #6b7280;
-      margin-bottom: 1.8rem;
-      line-height: 1.5;
-    }
-
-    .steps {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 1.8rem;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .step {
-      background: rgba(255,255,255,0.88);
-      border: 0.5px solid #d1fae5;
+    .logout-btn {
+      border: 1px solid rgba(31, 42, 42, 0.14);
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--text-main);
+      padding: 9px 14px;
       border-radius: 12px;
+      font: inherit;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255, 255, 255, 0.92);
+      border-color: rgba(31, 42, 42, 0.26);
+    }
+
+    .shell {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(380px, 460px);
+      gap: 48px;
+      align-items: start;
+      max-width: 1180px;
+      margin: 0 auto;
+      min-height: calc(100vh - 96px);
+      padding-top: 18px;
+    }
+
+    .story {
+      padding: 0 0 12px;
+      max-width: 620px;
+      align-self: start;
+      transform: translateY(-10px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       padding: 10px 14px;
-      font-size: 11px;
-      color: #374151;
-      min-width: 90px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.45);
+      color: var(--text-soft);
+      font-size: 0.85rem;
+      margin-bottom: 22px;
+    }
+
+    .hero-title {
+      margin: 0;
+      max-width: 11ch;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(3rem, 5.8vw, 5rem);
+      line-height: 0.96;
+      letter-spacing: -0.055em;
+    }
+
+    .hero-copy {
+      max-width: 540px;
+      margin: 22px 0 24px;
+      font-size: 1.02rem;
+      line-height: 1.75;
+      color: var(--text-soft);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 34px;
+    }
+
+    .chip {
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.55);
+      color: var(--text-main);
+      font-size: 0.92rem;
+    }
+
+    .story-stat {
+      max-width: 540px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(31, 42, 42, 0.08);
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    .story-stat-label {
+      display: inline-block;
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--teal);
+    }
+
+    .story-stat strong {
+      display: block;
+      margin-bottom: 8px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .story-stat p {
+      margin: 0;
+      color: var(--text-soft);
+      line-height: 1.65;
+      font-size: 0.94rem;
+    }
+
+    .panel {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 460px;
+      padding: 28px;
+      border: 1px solid rgba(31, 42, 42, 0.09);
+      border-radius: 28px;
+      background: var(--card);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+
+    .card-kicker {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      margin: 0 0 8px;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.9rem;
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    .card-copy {
+      margin: 0 0 14px;
+      color: var(--text-soft);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    .voice-block {
+      border: 1px solid rgba(31, 42, 42, 0.08);
+      background: rgba(255, 255, 255, 0.54);
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 14px;
       text-align: center;
     }
 
-    .step-icon { font-size: 15px; margin-bottom: 4px; }
-
-    /* ── Mic button ── */
     .btn-wrap {
       position: relative;
       width: 120px;
@@ -191,23 +268,23 @@ div[style*="position: fixed"][style*="bottom"] {
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      margin-bottom: 1rem;
+      margin: 0 auto 10px;
     }
 
     .ring {
       position: absolute;
       border-radius: 50%;
-      border: 1.5px solid #bbf7d0;
+      border: 1.5px solid rgba(15, 118, 110, 0.28);
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       pointer-events: none;
     }
 
     .ring-1 { width: 110px; height: 110px; opacity: 0.5; }
-    .ring-2 { width: 90px;  height: 90px;  border-color: #6ee7b7; opacity: 0.4; }
+    .ring-2 { width: 90px;  height: 90px;  border-color: rgba(15, 118, 110, 0.42); opacity: 0.4; }
 
-    .ring-1.active { animation: rpl 1.5s ease-out infinite; border-color: #059669; }
-    .ring-2.active { animation: rpl 1.5s ease-out infinite 0.4s; border-color: #059669; }
+    .ring-1.active { animation: rpl 1.5s ease-out infinite; border-color: var(--teal); }
+    .ring-2.active { animation: rpl 1.5s ease-out infinite 0.4s; border-color: var(--teal); }
 
     @keyframes rpl {
       0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.5; }
@@ -219,7 +296,7 @@ div[style*="position: fixed"][style*="bottom"] {
       height: 70px;
       border-radius: 50%;
       background: white;
-      border: 2px solid #059669;
+      border: 2px solid var(--teal);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -227,58 +304,56 @@ div[style*="position: fixed"][style*="bottom"] {
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       z-index: 2;
-      box-shadow: 0 4px 16px rgba(5,150,105,0.18);
+      box-shadow: 0 4px 16px rgba(15, 118, 110, 0.2);
       transition: all 0.2s ease;
     }
 
     .mic-btn:hover { background: #ecfdf5; }
-    .mic-btn.active { background: #059669; }
+    .mic-btn.active { background: var(--teal); }
     .mic-btn.active svg { stroke: white; }
     .mic-btn.loading { opacity: 0.5; cursor: not-allowed; }
 
     .btn-label {
-      font-size: 13px;
-      color: #059669;
-      font-weight: 500;
+      font-size: 0.9rem;
+      color: var(--teal);
+      font-weight: 700;
       margin-bottom: 3px;
     }
 
     .btn-hint {
-      font-size: 11px;
-      color: #9ca3af;
-      margin-bottom: 0.6rem;
+      font-size: 0.78rem;
+      color: var(--text-soft);
+      margin-bottom: 2px;
     }
 
     .status {
-      font-size: 12px;
+      font-size: 0.8rem;
       color: #9ca3af;
       min-height: 18px;
-      margin-bottom: 0.8rem;
+      margin-top: 6px;
       transition: color 0.2s;
     }
 
-    .status.active { color: #059669; }
-    .status.error  { color: #ef4444; }
+    .status.active { color: var(--teal); }
+    .status.error  { color: var(--danger); }
 
-    /* ── Meetings tracker ── */
     .meetings-box {
       width: 100%;
-      max-width: 420px;
-      background: rgba(255,255,255,0.88);
-      border: 0.5px solid #d1fae5;
-      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(31, 42, 42, 0.1);
+      border-radius: 18px;
       padding: 14px 16px;
     }
 
     .meetings-title {
-      font-size: 10px;
-      font-weight: 600;
-      color: #065f46;
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--teal);
       margin-bottom: 10px;
       display: flex;
       align-items: center;
       gap: 6px;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
 
@@ -287,7 +362,7 @@ div[style*="position: fixed"][style*="bottom"] {
       align-items: center;
       gap: 10px;
       padding: 8px 0;
-      border-bottom: 0.5px solid #f0fdf4;
+      border-bottom: 1px solid rgba(31, 42, 42, 0.06);
       animation: fadeIn 0.4s ease;
     }
 
@@ -301,48 +376,152 @@ div[style*="position: fixed"][style*="bottom"] {
     .meeting-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
-      background: #10b981;
+      background: var(--teal);
       flex-shrink: 0;
     }
 
     .meeting-info { flex: 1; }
 
     .meeting-name {
-      font-size: 12px;
-      font-weight: 500;
-      color: #1e1b4b;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
     }
 
     .meeting-meta {
-      font-size: 10px;
-      color: #9ca3af;
+      font-size: 0.7rem;
+      color: #8a9695;
       margin-top: 1px;
     }
 
     .meeting-time {
-      font-size: 11px;
-      color: #059669;
-      font-weight: 500;
+      font-size: 0.72rem;
+      color: var(--teal);
+      font-weight: 700;
       flex-shrink: 0;
     }
 
     .no-meetings {
-      font-size: 12px;
-      color: #d1d5db;
+      font-size: 0.78rem;
+      color: #9ca3af;
       text-align: center;
       padding: 6px 0;
     }
 
     .footer {
+      font-size: 0.66rem;
+      color: #9aa5a4;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* Calendar background */
+    .cal-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.44;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cal-header-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      border-bottom: 1px solid rgba(15, 118, 110, 0.1);
+    }
+
+    .cal-day-label {
+      text-align: center;
       font-size: 10px;
-      color: #d1d5db;
-      margin-top: 1.2rem;
+      font-weight: 600;
+      color: rgba(15, 118, 110, 0.22);
+      padding: 10px 0;
+      letter-spacing: 0.05em;
+    }
+
+    .cal-cells {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      flex: 1;
+    }
+
+    .cal-cell {
+      border-right: 0.5px solid rgba(15, 118, 110, 0.08);
+      border-bottom: 0.5px solid rgba(15, 118, 110, 0.08);
+      padding: 6px 8px;
+      min-height: 80px;
+      transition: background 0.4s ease;
+    }
+
+    .cal-num {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(15, 118, 110, 0.2);
+      transition: all 0.4s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+    }
+
+    .cal-num.today {
+      color: rgba(15, 118, 110, 0.45);
+      font-weight: 600;
+    }
+
+    .cal-num.highlighted {
+      background: rgba(15, 118, 110, 0.2);
+      color: var(--teal) !important;
+      font-weight: 700;
+    }
+
+    .cal-cell.highlighted {
+      background: rgba(15, 118, 110, 0.05);
+    }
+
+    .cal-evt {
+      font-size: 8px;
+      background: rgba(15, 118, 110, 0.08);
+      color: rgba(15, 118, 110, 0.32);
+      border-radius: 3px;
+      padding: 2px 4px;
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cal-evt.new {
+      background: rgba(15, 118, 110, 0.2);
+      color: var(--teal);
+    }
+
+    @media (max-width: 1024px) {
+      .page { padding: 18px; }
+      .shell {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        min-height: auto;
+      }
+      .story { transform: none; }
+      .hero-title { max-width: 16ch; }
+      .panel { justify-content: flex-start; }
+      .card { max-width: 100%; }
+    }
+
+    @media (max-width: 580px) {
+      .hero-title { font-size: clamp(2.2rem, 12vw, 3rem); }
+      .chips { gap: 8px; }
+      .chip { font-size: 0.84rem; padding: 9px 12px; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Calendar background -->
   <div class="cal-bg">
     <div class="cal-header-row">
       <div class="cal-day-label">SUN</div>
@@ -356,62 +535,70 @@ div[style*="position: fixed"][style*="bottom"] {
     <div class="cal-cells" id="calCells"></div>
   </div>
 
-  <!-- Blobs -->
-  <svg class="blobs" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="8%"  cy="18%" r="130" fill="#bbf7d0" opacity="0.38"/>
-    <circle cx="87%" cy="10%" r="90"  fill="#a5f3fc" opacity="0.28"/>
-    <circle cx="91%" cy="82%" r="150" fill="#d9f99d" opacity="0.32"/>
-    <circle cx="4%"  cy="86%" r="110" fill="#c4b5fd" opacity="0.22"/>
-  </svg>
-
-  <!-- Main content -->
-  <div class="content">
-
-    <div class="icon-wrap">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8"  y1="2" x2="8"  y2="6"/>
-        <line x1="3"  y1="10" x2="21" y2="10"/>
-      </svg>
-    </div>
-
-    <h1>Voice Scheduling Agent</h1>
-    <p class="subtitle">Schedule meetings effortlessly using just your voice.</p>
-
-    <div class="steps">
-      <div class="step"><div class="step-icon">👤</div>Your name</div>
-      <div class="step"><div class="step-icon">📅</div>Date & time</div>
-      <div class="step"><div class="step-icon">✅</div>Confirm & done</div>
-    </div>
-
-    <div class="btn-wrap" onclick="toggleCall()">
-      <div class="ring ring-1" id="ring1"></div>
-      <div class="ring ring-2" id="ring2"></div>
-      <div class="mic-btn" id="micBtn">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="22"/>
-        </svg>
+  <div class="page">
+    <div class="brandbar">
+      <div class="brand-copy">
+        <div class="brand-name">Aster</div>
+        <div class="brand-tag">Voice Scheduling Assistant</div>
       </div>
+      <button id="logoutBtn" class="logout-btn" type="button">Log out</button>
     </div>
 
-    <p class="btn-label" id="btnLabel">Tap to start your session</p>
-    <p class="btn-hint"  id="btnHint">Speak naturally — the agent will guide you</p>
-    <p class="status"    id="status"></p>
+    <div class="shell">
+      <section class="story">
+        <div class="eyebrow">Voice-first calendar coordination</div>
+        <h1 class="hero-title">Schedule meetings with conversation, not forms.</h1>
+        <p class="hero-copy">Use natural voice commands to create meetings and check weather-aware summaries for your in-person plans. Your profile context and calendar stay connected in one flow.</p>
+        <div class="chips">
+          <div class="chip">Google Calendar Sync</div>
+          <div class="chip">Weather-Aware Guidance</div>
+          <div class="chip">Profile-Based Personalization</div>
+        </div>
+        <div class="story-stat">
+          <span class="story-stat-label">How It Works</span>
+          <strong>Speak naturally. Aster handles extraction, scheduling, and follow-up.</strong>
+          <p>Start a call, share meeting details, and the assistant confirms creation while maintaining a live tracker of your recent scheduled events.</p>
+        </div>
+      </section>
 
-    <div class="meetings-box">
-      <div class="meetings-title">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        Recent Meetings
-      </div>
-      <div id="meetingsList">
-        <div class="no-meetings" id="noMeetings">No meetings scheduled yet</div>
-      </div>
+      <section class="panel">
+        <div class="card">
+          <div class="card-kicker">Live Assistant</div>
+          <h2 class="card-title">Voice Session</h2>
+          <p class="card-copy">Tap the mic, speak your request, and Aster will guide the rest.</p>
+
+          <div class="voice-block">
+            <div class="btn-wrap" onclick="toggleCall()">
+              <div class="ring ring-1" id="ring1"></div>
+              <div class="ring ring-2" id="ring2"></div>
+              <div class="mic-btn" id="micBtn">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f766e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                </svg>
+              </div>
+            </div>
+
+            <p class="btn-label" id="btnLabel">Tap to start your session</p>
+            <p class="btn-hint" id="btnHint">Speak naturally — the agent will guide you</p>
+            <p class="status" id="status"></p>
+          </div>
+
+          <div class="meetings-box">
+            <div class="meetings-title">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0f766e" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Recent Meetings
+            </div>
+            <div id="meetingsList">
+              <div class="no-meetings" id="noMeetings">No meetings scheduled yet</div>
+            </div>
+          </div>
+
+          <p class="footer">Powered by VAPI · Google Calendar · GPT-4.1</p>
+        </div>
+      </section>
     </div>
-
-    <p class="footer">Powered by VAPI · Google Calendar · GPT-4.1</p>
   </div>
 
   <script src="https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js"></script>
@@ -503,6 +690,20 @@ div[style*="position: fixed"][style*="bottom"] {
     }
     const me = await meRes.json();
     window.USER_SUB = (me.user && me.user.sub) ? me.user.sub : '';
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async function () {
+        try {
+          await fetch('/auth/logout', {
+            method: 'POST',
+            credentials: 'include'
+          });
+        } finally {
+          window.location.href = '/login';
+        }
+      });
+    }
 
     document.getElementById('status').textContent = 'Initializing...';
     const res = await fetch('/vapi-key');
